@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2a38"/>
+      <stop offset="1" stop-color="#0d151d"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6fd0f5"/>
+      <stop offset="1" stop-color="#2aa7d8"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffc766"/>
+      <stop offset="1" stop-color="#f0a030"/>
+    </linearGradient>
+  </defs>
+  <!-- tile -->
+  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
+  <!-- grid: three rows of "data" -->
+  <g fill="#ffffff" fill-opacity="0.10">
+    <rect x="200" y="640" width="624" height="56" rx="28"/>
+    <rect x="200" y="740" width="624" height="56" rx="28"/>
+  </g>
+  <!-- osprey: wings spread, diving -->
+  <path d="M512 250
+           C 470 330, 380 380, 250 372
+           C 330 420, 420 440, 470 430
+           L 512 520
+           L 554 430
+           C 604 440, 694 420, 774 372
+           C 644 380, 554 330, 512 250 Z"
+        fill="url(#sky)"/>
+  <!-- eye / focus point -->
+  <circle cx="512" cy="360" r="34" fill="#0d151d"/>
+  <circle cx="512" cy="360" r="14" fill="url(#amber)"/>
+  <!-- the catch: highlighted row -->
+  <rect x="200" y="540" width="624" height="56" rx="28" fill="url(#amber)"/>
+  <rect x="236" y="558" width="140" height="20" rx="10" fill="#0d151d" fill-opacity="0.55"/>
+  <rect x="404" y="558" width="240" height="20" rx="10" fill="#0d151d" fill-opacity="0.35"/>
+</svg>

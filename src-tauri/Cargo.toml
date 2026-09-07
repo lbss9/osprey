@@ -1,0 +1,62 @@
+[package]
+name = "osprey"
+version = "0.1.0"
+description = "Osprey — a fast, beautiful database client for PostgreSQL, MySQL and Redis."
+authors = ["lbss9"]
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "osprey_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# shell
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+# async
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures-util = "0.3"
+
+# local storage (connections, history, settings)
+rusqlite = { version = "0.40", features = ["bundled"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"] }
+
+# drivers
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-chrono-0_4", "with-uuid-1"] }
+tokio-postgres-rustls = { version = "0.14", default-features = false, features = ["ring"] }
+mysql_async = { version = "0.37", default-features = false, features = ["default-rustls-ring"] }
+redis = { version = "1", features = ["tokio-comp", "connection-manager", "tokio-rustls-comp", "tls-rustls-insecure", "streams"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-native-certs = "0.8"
+
+# values
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+rust_decimal = { version = "1", features = ["db-tokio-postgres"] }
+base64 = "0.22"
+hex = "0.4"
+thiserror = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

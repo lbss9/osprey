@@ -1,0 +1,111 @@
+name: release
+
+# Builds installers for Windows, macOS (Apple Silicon + Intel) and Linux,
+# signs the updater artifacts and publishes one GitHub release with
+# `latest.json` — the file the in-app updater polls.
+#
+# Trigger: push a tag like `v0.2.0` (see `npm run release`), or run manually.
+# Secrets: TAURI_SIGNING_PRIVATE_KEY (minisign key, no password).
+# Optional (macOS notarization): APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+# APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            name: macOS arm64
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            name: macOS x64
+          - platform: ubuntu-22.04
+            args: ""
+            name: Linux x64
+          - platform: windows-latest
+            args: ""
+            name: Windows x64
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.args }}
+
+      - run: npm ci
+
+      - name: Type-check frontend
+        run: npx tsc --noEmit
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build, sign and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          # macOS signing/notarization — leave the secrets empty to ship unsigned builds
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Osprey v__VERSION__"
+          releaseBody: |
+            ### Download
+
+            | Platform | File |
+            | --- | --- |
+            | Windows | `Osprey___VERSION___x64-setup.exe` (installer, recommended) or `Osprey___VERSION___x64_en-US.msi` |
+            | macOS Apple Silicon | `Osprey___VERSION___aarch64.dmg` |
+            | macOS Intel | `Osprey___VERSION___x64.dmg` |
+            | Linux | `Osprey___VERSION___amd64.AppImage`, `.deb` or `.rpm` |
+
+            Installed copies check this release on startup and offer to update
+            in place (Settings → About → Check for updates).
+
+            macOS builds are not notarized yet: after copying Osprey to
+            Applications, run `xattr -cr /Applications/Osprey.app` once, or
+            right-click → Open.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}

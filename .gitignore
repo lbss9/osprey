@@ -1,0 +1,32 @@
+# dependencies / build output
+node_modules
+dist
+dist-ssr
+*.local
+
+# rust
+src-tauri/target
+src-tauri/gen/schemas
+
+# logs
+logs
+*.log
+npm-debug.log*
+
+# editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# never commit signing keys
+*.key
+.tauri/
+
+# local tooling
+.claude/
