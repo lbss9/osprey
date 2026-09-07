@@ -2627,3 +2627,31 @@ kbd {
   color: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
+
+/* ------------------------------ small layouts ----------------------------- */
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.input-row .input {
+  flex: 1;
+  min-width: 0;
+}
+.db-switch .dd {
+  flex: 1;
+  min-width: 0;
+}
+.redis-keys .search .dd {
+  width: 120px;
+  flex: none;
+}
+.filter-row .dd.f-col,
+.filter-row .dd.f-op {
+  width: 190px;
+  flex: none;
+}
+.tree-row.system .label {
+  color: var(--text-faint);
+  font-style: italic;
+}
