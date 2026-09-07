@@ -479,5 +479,13 @@
     "applied": "Estrutura atualizada",
     "dropColumnConfirm": "Remover a coluna \"{{name}}\"? Os dados dela são perdidos.",
     "dropIndexConfirm": "Remover o índice \"{{name}}\"?"
+  },
+  "explain": {
+    "title": "Plano de execução",
+    "raw": "Plano bruto",
+    "empty": "Nenhum plano retornado",
+    "hint": "Mostra como o servidor executaria isto (EXPLAIN)",
+    "analyze": "Analisar",
+    "analyzeHint": "Executa a consulta e mostra tempos reais (EXPLAIN ANALYZE)"
   }
 }

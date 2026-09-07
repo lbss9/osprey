@@ -2820,3 +2820,106 @@ kbd {
 .driver-cards {
   grid-template-columns: repeat(4, 1fr);
 }
+
+/* --------------------------------- explain -------------------------------- */
+.explain {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.explain-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: var(--panel);
+}
+.explain-head .grow {
+  flex: 1;
+}
+.toggle-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding-right: 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+}
+.plan-row:hover {
+  background: var(--panel-2);
+}
+.plan-row .chev {
+  color: var(--text-faint);
+  flex: none;
+  transition: transform 0.12s;
+}
+.plan-row .chev.open {
+  transform: rotate(90deg);
+}
+.plan-row .chev.hidden {
+  visibility: hidden;
+}
+.plan-title {
+  font-weight: 600;
+  flex: none;
+}
+.plan-row.warn .plan-title {
+  color: var(--amber);
+}
+.plan-detail {
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.plan-meta {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.plan-bar {
+  width: 90px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  overflow: hidden;
+  flex: none;
+}
+.plan-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.plan-row.warn .plan-bar > span {
+  background: var(--amber);
+}
+.value-editor .cm-editor {
+  min-height: 50vh;
+  max-height: 60vh;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}

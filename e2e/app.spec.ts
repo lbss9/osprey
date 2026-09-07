@@ -119,6 +119,11 @@ test.describe("table view", () => {
     await expect(cell(page, 0, "age").locator(".null")).toHaveText("NULL");
     await expect(page.locator(".statusbar")).toContainText("1–200 of 240");
 
+    // rows start right under the header (regression: a blank strip appeared once)
+    const headBox = (await page.locator(".grid-head").boundingBox())!;
+    const firstRow = (await page.locator(".g-row").first().boundingBox())!;
+    expect(Math.abs(firstRow.y - (headBox.y + headBox.height))).toBeLessThan(2);
+
     await head.nth(1).click();
     await head.nth(1).click();
     await expect(cell(page, 0, "name")).toHaveText("Person 99");
@@ -288,6 +293,20 @@ test.describe("query view", () => {
     await expect(hist.locator(".hist-item").first()).toContainText("Error");
     await hist.locator(".hist-item").nth(1).click();
     await expect(editor).toContainText("SELECT * FROM people LIMIT 5");
+
+    // EXPLAIN renders the plan tree with costs
+    await editor.click();
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("SELECT * FROM people ORDER BY name");
+    await page.locator(".toolbar").getByRole("button", { name: "Explain", exact: true }).click();
+    const plan = page.locator(".explain");
+    await expect(plan.locator(".plan-row").first()).toContainText("Sort");
+    await expect(plan.locator(".plan-row").nth(1)).toContainText("Seq Scan · people");
+    await expect(plan.locator(".plan-row").nth(1)).toContainText("(age > 30)");
+    await plan.locator(".plan-row").first().click(); // collapse
+    await expect(plan.locator(".plan-row")).toHaveCount(1);
+    await page.locator(".toolbar").getByRole("button", { name: "Run", exact: true }).click();
+    await expect(page.locator(".g-row").first()).toBeVisible();
 
     // save the query, find it in the Saved tab and in the palette
     await page.keyboard.press("Control+Shift+s");

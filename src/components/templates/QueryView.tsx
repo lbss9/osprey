@@ -14,6 +14,7 @@ import PromptDialog from "@/components/molecules/PromptDialog";
 import StatusBar from "@/components/molecules/StatusBar";
 import ValueDialog from "@/components/molecules/ValueDialog";
 import DataGrid from "@/components/organisms/DataGrid";
+import ExplainPanel from "@/components/organisms/ExplainPanel";
 import HistoryPanel from "@/components/organisms/HistoryPanel";
 import SqlEditor, { type SqlEditorHandle } from "@/components/organisms/SqlEditor";
 import { useUi } from "@/store/ui";
@@ -21,7 +22,7 @@ import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
 import { cellText, formatDuration, formatNumber } from "@/utils/format";
-import type { ResultSet, Tab } from "@/types";
+import type { ExplainResult, ResultSet, Tab } from "@/types";
 
 /** SQL editor on top, results below. Ctrl+Enter runs the selection or all. */
 export default function QueryView({ tab }: { tab: Tab }) {
@@ -43,6 +44,8 @@ export default function QueryView({ tab }: { tab: Tab }) {
   const [limit, setLimit] = useState(queryLimit);
   const [viewer, setViewer] = useState<{ r: number; c: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [explain, setExplain] = useState<ExplainResult | null>(null);
+  const [explaining, setExplaining] = useState(false);
   const toast = useWorkspace((s) => s.toast);
 
   const driver = conn?.driver ?? "postgres";
@@ -66,6 +69,7 @@ export default function QueryView({ tab }: { tab: Tab }) {
     setError(null);
     try {
       const sets = await api.queryRun(tab.connectionId, text, limit);
+      setExplain(null);
       setResults(sets);
       const firstGrid = sets.findIndex((s) => s.columns.length > 0);
       setActive(firstGrid >= 0 ? firstGrid : sets.length);
@@ -77,6 +81,22 @@ export default function QueryView({ tab }: { tab: Tab }) {
       setHistoryVersion((v) => v + 1);
     }
   }, [running, tab.connectionId, limit]);
+
+  const doExplain = async (analyze: boolean) => {
+    const text = editor.current?.getSelection() || editor.current?.getText() || "";
+    if (!text.trim() || explaining) return;
+    setExplaining(true);
+    setError(null);
+    try {
+      const r = await api.queryExplain(tab.connectionId, text, analyze);
+      setExplain(r);
+      setResults(null);
+    } catch (e) {
+      setError(translateError(e));
+    } finally {
+      setExplaining(false);
+    }
+  };
 
   const cancel = async () => {
     try {
@@ -111,6 +131,16 @@ export default function QueryView({ tab }: { tab: Tab }) {
         {running && (
           <Button size="sm" variant="danger" onClick={() => void cancel()}>
             <Icon name="square" size={12} /> {t("query.cancel")}
+          </Button>
+        )}
+        {driver !== "redis" && (
+          <Button size="sm" variant="ghost" onClick={() => void doExplain(false)} disabled={running || explaining} title={t("explain.hint")}>
+            {explaining ? <Spinner /> : <Icon name="zap" size={13} />} {t("query.explain")}
+          </Button>
+        )}
+        {driver !== "sqlite" && driver !== "redis" && (
+          <Button size="sm" variant="ghost" onClick={() => void doExplain(true)} disabled={running || explaining} title={t("explain.analyzeHint")}>
+            {t("explain.analyze")}
           </Button>
         )}
         <ConnChip connectionId={tab.connectionId} />
@@ -161,7 +191,8 @@ export default function QueryView({ tab }: { tab: Tab }) {
                 <span className="err">{error}</span>
               </div>
             )}
-            {!error && !results && !running && <div className="results-empty">{t("query.noResults")}</div>}
+            {!error && explain && <ExplainPanel result={explain} />}
+            {!error && !results && !running && !explain && <div className="results-empty">{t("query.noResults")}</div>}
             {!error && running && !results && (
               <div className="results-empty">
                 <Spinner size="lg" />

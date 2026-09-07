@@ -11,6 +11,7 @@ import type {
   ConnectionConfig,
   ConnectionInput,
   DdlOp,
+  ExplainResult,
   HistoryEntry,
   RedisCommandResult,
   RedisMutation,
@@ -69,6 +70,8 @@ export const ddlApply = (connectionId: string, op: DdlOp) => invoke<string[]>("d
 export const queryRun = (connectionId: string, sql: string, maxRows?: number) =>
   invoke<ResultSet[]>("query_run", { connectionId, sql, maxRows: maxRows ?? null });
 export const queryCancel = (connectionId: string) => invoke<void>("query_cancel", { connectionId });
+export const queryExplain = (connectionId: string, sql: string, analyze = false) =>
+  invoke<ExplainResult>("query_explain", { connectionId, sql, analyze });
 export const historyList = (connectionId?: string, limit?: number) =>
   invoke<HistoryEntry[]>("history_list", { connectionId: connectionId ?? null, limit: limit ?? null });
 export const historyClear = (connectionId?: string) =>

@@ -479,5 +479,13 @@
     "applied": "Structure updated",
     "dropColumnConfirm": "Drop column \"{{name}}\"? Its data is lost.",
     "dropIndexConfirm": "Drop index \"{{name}}\"?"
+  },
+  "explain": {
+    "title": "Query plan",
+    "raw": "Raw plan",
+    "empty": "No plan returned",
+    "hint": "Show how the server would run this (EXPLAIN)",
+    "analyze": "Analyze",
+    "analyzeHint": "Run the query and show real timings (EXPLAIN ANALYZE)"
   }
 }

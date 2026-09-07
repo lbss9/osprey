@@ -39,6 +39,73 @@ pub async fn query_run(
     Ok(outcome?)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExplainResult {
+    pub driver: crate::models::DriverKind,
+    /// engine-specific JSON plan (PostgreSQL FORMAT JSON, MySQL FORMAT=JSON,
+    /// SQLite: `{ "nodes": [{id, parent, detail}] }`)
+    pub plan: serde_json::Value,
+    /// textual plan when the engine only offers text (EXPLAIN ANALYZE on MySQL)
+    pub text: Option<String>,
+}
+
+/// Run EXPLAIN for one statement. `analyze` executes the statement to get
+/// actual timings (PostgreSQL / MySQL 8.0.18+); never used for writes by the UI.
+#[tauri::command]
+pub async fn query_explain(
+    state: State<'_, AppState>,
+    connection_id: String,
+    sql: String,
+    analyze: Option<bool>,
+) -> CmdResult<ExplainResult> {
+    use crate::models::DriverKind;
+    let s = state.session(&connection_id).await?.sql()?;
+    let analyze = analyze.unwrap_or(false);
+    let body = sql.trim().trim_end_matches(';');
+    let driver = s.kind();
+    let text_of = |sets: &[ResultSet]| -> String {
+        sets.iter()
+            .flat_map(|r| r.rows.iter())
+            .filter_map(|row| row.first())
+            .map(|v| match v {
+                serde_json::Value::String(t) => t.clone(),
+                other => other.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    match driver {
+        DriverKind::Postgres => {
+            let stmt = format!("EXPLAIN (FORMAT JSON{}) {body}", if analyze { ", ANALYZE, BUFFERS" } else { "" });
+            let sets = s.query(&stmt, HARD_MAX_ROWS).await?;
+            let text = text_of(&sets);
+            let plan: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text.clone()));
+            Ok(ExplainResult { driver, plan, text: None })
+        }
+        DriverKind::Mysql => {
+            if analyze {
+                let sets = s.query(&format!("EXPLAIN ANALYZE {body}"), HARD_MAX_ROWS).await?;
+                return Ok(ExplainResult { driver, plan: serde_json::Value::Null, text: Some(text_of(&sets)) });
+            }
+            let sets = s.query(&format!("EXPLAIN FORMAT=JSON {body}"), HARD_MAX_ROWS).await?;
+            let text = text_of(&sets);
+            let plan: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text.clone()));
+            Ok(ExplainResult { driver, plan, text: None })
+        }
+        DriverKind::Sqlite => {
+            let sets = s.query(&format!("EXPLAIN QUERY PLAN {body}"), HARD_MAX_ROWS).await?;
+            let nodes: Vec<serde_json::Value> = sets
+                .iter()
+                .flat_map(|r| r.rows.iter())
+                .map(|row| serde_json::json!({ "id": row.first().cloned().unwrap_or(serde_json::Value::Null), "parent": row.get(1).cloned().unwrap_or(serde_json::Value::Null), "detail": row.get(3).cloned().unwrap_or(serde_json::Value::Null) }))
+                .collect();
+            Ok(ExplainResult { driver, plan: serde_json::json!({ "nodes": nodes }), text: None })
+        }
+        DriverKind::Redis => Err(crate::error::AppError::Unsupported("explain".into()).into()),
+    }
+}
+
 #[tauri::command]
 pub async fn query_cancel(state: State<'_, AppState>, connection_id: String) -> CmdResult<()> {
     let s = state.session(&connection_id).await?.sql()?;

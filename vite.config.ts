@@ -22,5 +22,16 @@ export default defineConfig(async () => ({
   build: {
     target: ["es2021", "chrome100", "safari14"],
     sourcemap: false,
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        // keep the editor and the icon set out of the main bundle
+        manualChunks: {
+          codemirror: ["@codemirror/view", "@codemirror/state", "@codemirror/language", "@codemirror/commands", "@codemirror/autocomplete", "@codemirror/lang-sql", "@codemirror/lang-json", "@lezer/highlight"],
+          icons: ["lucide-react"],
+          react: ["react", "react-dom"],
+        },
+      },
+    },
   },
 }));

@@ -282,6 +282,12 @@ export type DdlOp =
   | { kind: "dropTable"; schema: string; table: string }
   | { kind: "truncateTable"; schema: string; table: string };
 
+export interface ExplainResult {
+  driver: DriverKind;
+  plan: unknown;
+  text?: string | null;
+}
+
 export interface AppInfo {
   version: string;
   os: string;

@@ -78,6 +78,7 @@ pub fn run() {
             ddl_preview,
             ddl_apply,
             query_run,
+            query_explain,
             query_cancel,
             history_list,
             history_clear,

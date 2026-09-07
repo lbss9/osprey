@@ -584,6 +584,23 @@ const handlers: Record<string, Handler> = {
     return sets;
   },
   query_cancel: () => undefined,
+  query_explain: ({ connectionId, sql, analyze }) => {
+    session(connectionId as string);
+    if (/\bnope\b/i.test(String(sql))) throw 'errors.query|relation "nope" does not exist';
+    const plan = [
+      {
+        Plan: {
+          "Node Type": "Sort",
+          "Total Cost": 42.5,
+          "Plan Rows": 240,
+          "Sort Key": ["name"],
+          ...(analyze ? { "Actual Total Time": 1.23, "Actual Rows": 240 } : {}),
+          Plans: [{ "Node Type": "Seq Scan", "Relation Name": "people", "Total Cost": 12.4, "Plan Rows": 240, Filter: "(age > 30)", ...(analyze ? { "Actual Total Time": 0.4, "Actual Rows": 200 } : {}) }],
+        },
+      },
+    ];
+    return { driver: "postgres", plan, text: null };
+  },
   history_list: ({ connectionId, limit }) => history.filter((h) => !connectionId || h.connectionId === connectionId).slice(0, Number(limit ?? 200)),
   history_clear: ({ connectionId }) => {
     for (let i = history.length - 1; i >= 0; i--) if (!connectionId || history[i].connectionId === connectionId) history.splice(i, 1);
