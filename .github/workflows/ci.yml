@@ -42,7 +42,7 @@ jobs:
           CLICKHOUSE_DB: demo
         ports: ["58123:8123"]
         options: >-
-          --health-cmd "wget -qO- http://127.0.0.1:8123/ping" --health-interval 5s --health-timeout 5s --health-retries 30
+          --health-cmd "clickhouse-client --password osprey --query 'SELECT 1'" --health-interval 5s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@v4
       - run: |
