@@ -83,6 +83,8 @@ export default function ConnectionDialog() {
       port: b.port,
       user: form.user && form.driver !== "redis" && driver !== "redis" ? form.user : b.user,
       database: driver === "redis" ? "0" : form.driver === "redis" ? "" : form.database,
+      // Redis has no opportunistic TLS: a port is plain or TLS
+      sslMode: driver === "redis" ? "disable" : form.driver === "redis" ? "prefer" : form.sslMode,
     });
   };
   const input = () => ({
@@ -188,7 +190,7 @@ export default function ConnectionDialog() {
               <label>{t("connection.ssl")}</label>
               <select className="select" value={form.sslMode} onChange={(e) => set({ sslMode: e.target.value as SslMode })}>
                 <option value="disable">{t("connection.sslDisable")}</option>
-                <option value="prefer">{t("connection.sslPrefer")}</option>
+                {!isRedis && <option value="prefer">{t("connection.sslPrefer")}</option>}
                 <option value="require">{t("connection.sslRequire")}</option>
                 <option value="verify">{t("connection.sslVerify")}</option>
               </select>

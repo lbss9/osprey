@@ -60,33 +60,70 @@ impl From<std::io::Error> for AppError {
     }
 }
 
+/// Find the server's error anywhere in the cause chain (authentication
+/// failures arrive wrapped in a "connect" error).
+fn pg_db_error(e: &tokio_postgres::Error) -> Option<&tokio_postgres::error::DbError> {
+    if let Some(db) = e.as_db_error() {
+        return Some(db);
+    }
+    let mut cur: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(e);
+    for _ in 0..6 {
+        let c = cur?;
+        if let Some(db) = c.downcast_ref::<tokio_postgres::error::DbError>() {
+            return Some(db);
+        }
+        if let Some(inner) = c.downcast_ref::<tokio_postgres::Error>() {
+            if let Some(db) = inner.as_db_error() {
+                return Some(db);
+            }
+        }
+        cur = c.source();
+    }
+    None
+}
+
 impl From<tokio_postgres::Error> for AppError {
     fn from(e: tokio_postgres::Error) -> Self {
-        // `as_db_error` carries the server message; anything else is transport
-        if let Some(db) = e.as_db_error() {
+        if let Some(db) = pg_db_error(&e) {
             let code = db.code().code();
             if code.starts_with("28") {
                 return AppError::Auth(db.message().to_string());
             }
+            if code == "3D000" {
+                // unknown database
+                return AppError::Connect(db.message().to_string());
+            }
             let mut msg = db.message().to_string();
             if let Some(d) = db.detail() {
-                msg.push_str("\n");
+                msg.push('\n');
                 msg.push_str(d);
             }
             if let Some(h) = db.hint() {
                 msg.push_str("\nHint: ");
                 msg.push_str(h);
             }
-            if let Some(p) = db.position() {
-                if let tokio_postgres::error::ErrorPosition::Original(pos) = p {
-                    msg.push_str(&format!(" (position {pos})"));
-                }
+            if let Some(tokio_postgres::error::ErrorPosition::Original(pos)) = db.position() {
+                msg.push_str(&format!(" (position {pos})"));
             }
             return AppError::Query(msg);
         }
         let s = e.to_string();
-        if e.is_closed() || s.contains("connection") {
-            AppError::Connect(s)
+        let io_cause = {
+            let mut cur = std::error::Error::source(&e);
+            let mut found = false;
+            for _ in 0..6 {
+                let Some(c) = cur else { break };
+                if c.downcast_ref::<std::io::Error>().is_some() {
+                    found = true;
+                    break;
+                }
+                cur = c.source();
+            }
+            found
+        };
+        if e.is_closed() || io_cause || s.starts_with("error connecting") || s.contains("timed out") {
+            let detail = std::error::Error::source(&e).map(|c| c.to_string()).unwrap_or_default();
+            AppError::Connect(if detail.is_empty() { s } else { format!("{s}: {detail}") })
         } else {
             AppError::Query(s)
         }

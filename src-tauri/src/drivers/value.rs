@@ -171,6 +171,17 @@ pub fn mysql_value_to_json(v: mysql_async::Value, kind: ColumnKind, is_date_only
         V::NULL => J::Null,
         V::Bytes(b) => match String::from_utf8(b) {
             Ok(s) => {
+                if kind == ColumnKind::Bool {
+                    // tinyint(1): 0/1 are booleans, anything else stays a number
+                    match s.as_str() {
+                        "0" => return J::Bool(false),
+                        "1" => return J::Bool(true),
+                        _ => {}
+                    }
+                    if let Ok(i) = s.parse::<i64>() {
+                        return J::from(i);
+                    }
+                }
                 if kind == ColumnKind::Number {
                     // keep big/decimal numbers exact: only turn into a JSON number
                     // when it round-trips; otherwise leave the text as is
@@ -185,8 +196,18 @@ pub fn mysql_value_to_json(v: mysql_async::Value, kind: ColumnKind, is_date_only
             }
             Err(e) => J::String(format!("0x{}", hex::encode(e.into_bytes()))),
         },
-        V::Int(i) => J::from(i),
-        V::UInt(u) => J::from(u),
+        V::Int(i) => {
+            if kind == ColumnKind::Bool && (i == 0 || i == 1) {
+                return J::Bool(i == 1);
+            }
+            J::from(i)
+        }
+        V::UInt(u) => {
+            if kind == ColumnKind::Bool && (u == 0 || u == 1) {
+                return J::Bool(u == 1);
+            }
+            J::from(u)
+        }
         V::Float(f) => serde_json::Number::from_f64(f as f64)
             .map(J::Number)
             .unwrap_or_else(|| J::String(f.to_string())),
@@ -236,8 +257,8 @@ pub fn pg_text_to_json(text: Option<&str>, kind: ColumnKind) -> serde_json::Valu
             }
         }
         ColumnKind::Bool => match s {
-            "t" | "true" => J::Bool(true),
-            "f" | "false" => J::Bool(false),
+            "t" | "true" | "1" => J::Bool(true),
+            "f" | "false" | "0" => J::Bool(false),
             _ => J::String(s.to_string()),
         },
         _ => J::String(s.to_string()),

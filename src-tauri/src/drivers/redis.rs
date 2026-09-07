@@ -76,7 +76,10 @@ impl RedisSession {
         let username = if cfg.user.is_empty() { None } else { Some(cfg.user.clone()) };
         let pass = password.filter(|p| !p.is_empty()).map(|p| p.to_string());
 
-        let scheme = if cfg.ssl_mode == SslMode::Disable { "redis" } else { "rediss" };
+        // Redis has no STARTTLS: a port is either TLS or plain. "prefer" therefore
+        // means plain; only "require"/"verify" switch to TLS.
+        let tls = matches!(cfg.ssl_mode, SslMode::Require | SslMode::Verify);
+        let scheme = if tls { "rediss" } else { "redis" };
         let auth = match (&username, &pass) {
             (Some(u), Some(p)) => format!("{}:{}@", urlencode(u), urlencode(p)),
             (None, Some(p)) => format!(":{}@", urlencode(p)),
@@ -85,7 +88,7 @@ impl RedisSession {
         };
         let url = format!("{scheme}://{auth}{}:{}/{db}", cfg.host, cfg.port);
         let mut info: ConnectionInfo = url.into_connection_info()?;
-        if cfg.ssl_mode != SslMode::Disable && cfg.ssl_mode != SslMode::Verify {
+        if cfg.ssl_mode == SslMode::Require {
             info = info.set_addr(ConnectionAddr::TcpTls {
                 host: cfg.host.clone(),
                 port: cfg.port,

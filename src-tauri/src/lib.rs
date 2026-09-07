@@ -10,12 +10,12 @@
 //! - `error`    — the string-based error protocol the frontend translates
 
 mod commands;
-mod drivers;
-mod error;
-mod models;
+pub mod drivers;
+pub mod error;
+pub mod models;
 mod secrets;
 mod state;
-mod store;
+pub mod store;
 
 use std::collections::HashMap;
 use std::sync::Mutex;

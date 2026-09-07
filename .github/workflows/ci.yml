@@ -1,7 +1,7 @@
 name: ci
 
-# Fast checks on every push and pull request: frontend types + Rust tests.
-# Runs on Linux only; the release workflow covers the real builds.
+# Fast checks on every push and pull request: frontend types, bundle, Rust
+# unit tests, and the driver integration suite against real servers.
 
 on:
   push:
@@ -11,7 +11,29 @@ on:
 jobs:
   check:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: osprey
+          POSTGRES_DB: demo
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: osprey
+          MYSQL_DATABASE: demo
+        ports: ["53306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -uroot -posprey --silent" --health-interval 5s --health-timeout 5s --health-retries 30
+      redis:
+        image: redis:7
+        ports: ["56379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -28,4 +50,11 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run build
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Driver integration tests
+        env:
+          OSPREY_TEST_PG: postgres://postgres:osprey@127.0.0.1:55432/demo
+          OSPREY_TEST_MYSQL: mysql://root:osprey@127.0.0.1:53306/demo
+          OSPREY_TEST_REDIS: redis://127.0.0.1:56379/0
+        run: cargo test --manifest-path src-tauri/Cargo.toml --test drivers -- --ignored --test-threads=1
