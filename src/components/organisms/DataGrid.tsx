@@ -59,7 +59,7 @@ export default function DataGrid(p: DataGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [focus, setFocus] = useState<Pos | null>(null);
   const [anchor, setAnchor] = useState<Pos | null>(null);
-  const [editing, setEditing] = useState<(Pos & { text: string }) | null>(null);
+  const [editing, setEditing] = useState<(Pos & { text: string; selectAll: boolean }) | null>(null);
   const [widths, setWidths] = useState<number[]>([]);
   const ctx = useContextMenu();
   const editRef = useRef<HTMLInputElement>(null);
@@ -147,7 +147,9 @@ export default function DataGrid(p: DataGridProps) {
     if (!p.editable || p.edits?.deleted.has(pos.r)) return;
     const v = displayValue(pos.r, pos.c);
     const text = initial ?? (isDefault(v) ? "" : cellEditText(v));
-    setEditing({ ...pos, text });
+    // Enter/double-click: the whole value is selected so typing replaces it;
+    // typing a character straight into the cell keeps the caret after it
+    setEditing({ ...pos, text, selectAll: initial === undefined });
   };
 
   const commitEdit = (move?: "down" | "right") => {
@@ -167,8 +169,14 @@ export default function DataGrid(p: DataGridProps) {
   };
 
   useEffect(() => {
-    if (editing) editRef.current?.focus();
-  }, [editing]);
+    if (!editing) return;
+    const el = editRef.current;
+    if (!el) return;
+    el.focus();
+    if (editing.selectAll) el.select();
+    // run only when an edit starts, not on every keystroke
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing?.r, editing?.c]);
 
   /* --------------------------------- copying -------------------------------- */
   const copySelection = async () => {

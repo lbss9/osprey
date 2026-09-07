@@ -105,11 +105,18 @@ export default function TableView({ tab }: { tab: Tab }) {
     api.tableColumns(tab.connectionId, schema, table).then(setMeta).catch(() => setMeta([]));
   }, [tab.connectionId, schema, table]);
 
-  // Ctrl+R from the app shell
+  // Ctrl+R / Ctrl+S from the app shell. The apply handler is read through a
+  // ref so the listener always sees the current pending edits.
+  const applyRef = useRef<() => void>(() => {});
   useEffect(() => {
     const onRefresh = () => activeTabId === tab.id && void load();
+    const onApply = () => activeTabId === tab.id && applyRef.current();
     window.addEventListener("osprey-refresh", onRefresh);
-    return () => window.removeEventListener("osprey-refresh", onRefresh);
+    window.addEventListener("osprey-apply", onApply);
+    return () => {
+      window.removeEventListener("osprey-refresh", onRefresh);
+      window.removeEventListener("osprey-apply", onApply);
+    };
   }, [activeTabId, tab.id, load]);
 
   const columns = result?.columns ?? [];
@@ -227,6 +234,9 @@ export default function TableView({ tab }: { tab: Tab }) {
   };
 
   const discard = () => markDirty(EMPTY_EDITS);
+  applyRef.current = () => {
+    if (changeCount > 0 && !preview && !applying) void openPreview(false);
+  };
 
   /* --------------------------------- filters -------------------------------- */
   const applyFilters = () => {

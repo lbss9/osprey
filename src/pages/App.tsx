@@ -79,6 +79,9 @@ export default function App() {
       } else if (k === "r" && !e.shiftKey) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent("osprey-refresh"));
+      } else if (k === "s" && !e.shiftKey) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("osprey-apply"));
       } else if (k === "=" || k === "+") {
         e.preventDefault();
         zoom("in");

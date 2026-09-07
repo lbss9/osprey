@@ -124,7 +124,8 @@ test.describe("table view", () => {
     await expect(preview).toContainText(`DELETE FROM "public"."people" WHERE "id" = 4`);
     await page.locator(".dialog").getByRole("button", { name: "Close" }).click();
 
-    await page.locator(".changes-bar").getByRole("button", { name: "Apply" }).click();
+    // Ctrl+S opens the same confirmation as the Apply button
+    await page.keyboard.press("Control+s");
     await expect(page.locator(".dialog")).toContainText("Including 1 DELETE");
     await page.locator(".dialog").getByRole("button", { name: "Apply" }).click();
     await expect(page.locator(".toast.success")).toContainText("4 rows affected");
