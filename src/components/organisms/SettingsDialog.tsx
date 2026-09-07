@@ -18,6 +18,8 @@ import { checkForUpdates, installUpdate, useUpdater } from "@/services/updater";
 import { confirmDialog } from "@/utils/dialog";
 
 const TABS = ["general", "appearance", "data", "about"] as const;
+const LOCALES = ["en-US", "en-GB", "pt-BR", "es-ES", "de-DE", "fr-FR", "it-IT", "ja-JP"];
+const localeSample = (l: string) => `${new Intl.NumberFormat(l).format(1234567.89)} · ${new Intl.DateTimeFormat(l, { dateStyle: "short" }).format(new Date(2026, 11, 31))}`;
 const num = (list: number[], suffix = "") => list.map((n) => ({ value: String(n), label: `${n}${suffix}` }));
 
 export default function SettingsDialog() {
@@ -66,6 +68,14 @@ export default function SettingsDialog() {
                 <SettingRow label={t("settings.language")}>
                   <Dropdown value={i18n.language.startsWith("pt") ? "pt-BR" : "en"} options={LANGUAGES.map((l) => ({ value: l.code, label: l.name }))} onChange={(v) => void i18n.changeLanguage(v)} />
                 </SettingRow>
+                <SettingRow label={t("settings.locale")} desc={t("settings.localeHint")}>
+                  <Dropdown
+                    value={ui.locale}
+                    options={[{ value: "auto", label: t("settings.localeAuto") }, ...LOCALES.map((l) => ({ value: l, label: `${l} · ${localeSample(l)}` }))]}
+                    onChange={(v) => ui.set({ locale: v })}
+                  />
+                </SettingRow>
+                <ToggleRow label={t("settings.formatValues")} desc={t("settings.formatValuesHint")} checked={ui.formatValues} onChange={(v) => ui.set({ formatValues: v })} />
                 <SettingRow label={t("settings.pageSize")}>
                   <Dropdown value={String(ui.pageSize)} options={num([50, 100, 200, 500, 1000])} onChange={(v) => ui.set({ pageSize: Number(v) })} />
                 </SettingRow>

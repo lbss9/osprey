@@ -376,7 +376,12 @@
     "themeDesc": "Drop a JSON file in the themes folder to add your own; changes apply instantly.",
     "themesFolder": "Themes folder",
     "themeExport": "Export current",
-    "themeExported": "Theme saved to the themes folder as my-theme.json"
+    "themeExported": "Theme saved to the themes folder as my-theme.json",
+    "locale": "Number and date format",
+    "localeHint": "How numbers and dates look in grids; copying and editing always use the raw value.",
+    "localeAuto": "Follow system",
+    "formatValues": "Format numbers and dates in grids",
+    "formatValuesHint": "1234567.5 → 1,234,567.5 and 2026-12-31 → 12/31/26"
   },
   "update": {
     "title": "Osprey {{version}} is ready",

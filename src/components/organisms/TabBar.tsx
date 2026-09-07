@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import Button from "@/components/atoms/Button";
 import Icon, { type IconName } from "@/components/atoms/Icon";
@@ -28,7 +29,10 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
   const closeAll = useWorkspace((s) => s.closeAllTabs);
   const connections = useWorkspace((s) => s.connections);
   const confirmClose = useUi((s) => s.confirmClose);
+  const moveTab = useWorkspace((s) => s.moveTab);
   const { open } = useContextMenu();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const tryClose = async (tab: Tab) => {
     if (tab.dirty && confirmClose && !(await confirmDialog(t("tabs.closeConfirm")))) return;
@@ -47,7 +51,32 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
           return (
             <div
               key={tab.id}
-              className={`tab ${tab.id === activeTabId ? "active" : ""} ${tab.dirty ? "dirty" : ""}`}
+              className={`tab ${tab.id === activeTabId ? "active" : ""} ${tab.dirty ? "dirty" : ""} ${overId === tab.id && dragId !== tab.id ? "drag-over" : ""}`}
+              draggable
+              data-tab-id={tab.id}
+              onDragStart={(e) => {
+                setDragId(tab.id);
+                e.dataTransfer.setData("application/x-osprey-tab", tab.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+              }}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes("application/x-osprey-tab")) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                setOverId(tab.id);
+              }}
+              onDragLeave={() => setOverId((cur) => (cur === tab.id ? null : cur))}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from = tabs.findIndex((x) => x.id === e.dataTransfer.getData("application/x-osprey-tab"));
+                if (from >= 0 && from !== i) moveTab(from, i);
+                setDragId(null);
+                setOverId(null);
+              }}
               onClick={() => setActive(tab.id)}
               onAuxClick={(e) => e.button === 1 && void tryClose(tab)}
               onContextMenu={(e) =>

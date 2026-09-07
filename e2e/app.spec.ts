@@ -504,6 +504,60 @@ test.describe("shell", () => {
     await page.keyboard.press("Escape");
   });
 
+  test("connections and tabs reorder by drag and drop", async ({ page }) => {
+    await openApp(page);
+    const names = () => page.locator(".tree-row.conn .label").allTextContents();
+    expect(await names()).toEqual(["Demo Postgres", "Demo Redis"]);
+    // dispatch the HTML5 drag events directly: Playwright's dragTo is flaky with dataTransfer
+    await page.evaluate(() => {
+      const rows = [...document.querySelectorAll<HTMLElement>(".tree-row.conn")];
+      const dt = new DataTransfer();
+      rows[1].dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
+      rows[0].dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+      rows[0].dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await expect.poll(names).toEqual(["Demo Redis", "Demo Postgres"]);
+
+    await connect(page, "Demo Postgres");
+    await page.locator(".sidebar").getByText("people", { exact: true }).click();
+    await page.locator(".sidebar").getByText("orders", { exact: true }).click();
+    await page.keyboard.press("Control+t");
+    const tabTitles = () => page.locator(".tabbar .tab .t-label").allTextContents();
+    await expect.poll(() => page.locator(".tabbar .tab").count()).toBe(3);
+    expect(await tabTitles()).toEqual(["people", "orders", "Query"]);
+    await page.evaluate(() => {
+      const tabs = [...document.querySelectorAll<HTMLElement>(".tabbar .tab")];
+      const dt = new DataTransfer();
+      tabs[2].dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
+      tabs[0].dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+      tabs[0].dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await expect.poll(tabTitles).toEqual(["Query", "people", "orders"]);
+  });
+
+  test("grid formats numbers and dates by locale", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.locator(".sidebar").getByText("people", { exact: true }).click();
+    await expect(page.locator(".g-row").first()).toBeVisible();
+    const cell = (col: number) => page.locator(".g-row").first().locator(".g-cell").nth(col);
+    const raw = await page.locator(".g-row").first().locator(".g-cell").allTextContents();
+    await page.keyboard.press("Control+,");
+    const dialog = page.locator(".dialog");
+    await pick(dialog.locator(".setting-row", { hasText: "Number and date format" }).locator(".dd"), "pt-BR");
+    await page.keyboard.press("Escape");
+    const ptBR = await page.locator(".g-row").first().locator(".g-cell").allTextContents();
+    // the created_at column has a timestamp; pt-BR renders day/month/year
+    expect(ptBR.some((v) => /\d{2}\/\d{2}\/\d{4}/.test(v))).toBe(true);
+    await page.keyboard.press("Control+,");
+    await dialog.locator(".setting-row", { hasText: "Format numbers and dates" }).locator(".toggle").click();
+    await page.keyboard.press("Escape");
+    const off = await page.locator(".g-row").first().locator(".g-cell").allTextContents();
+    expect(off.some((v) => /^\d{4}-\d{2}-\d{2}/.test(v))).toBe(true);
+    void raw;
+    void cell;
+  });
+
   test("tabs close with confirmation when dirty", async ({ page }) => {
     await openApp(page);
     await connect(page, "Demo Postgres");

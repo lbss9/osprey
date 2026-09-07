@@ -87,6 +87,7 @@ export default function Sidebar() {
             )}
             {(!name || !groupsCollapsed[name]) &&
               list.map((c) => <ConnectionNode key={c.id} conn={c} session={sessions[c.id]} filter={filter} onToggleSystem={toggleSystem} />)}
+            {(!name || !groupsCollapsed[name]) && <DropTail group={name} />}
           </div>
         ))}
       </div>
@@ -95,6 +96,32 @@ export default function Sidebar() {
 }
 
 /* ------------------------------- connection ------------------------------- */
+
+const DRAG_MIME = "application/x-osprey-connection";
+
+/** Drop zone after the last connection of a group (moves to the end). */
+function DropTail({ group }: { group: string }) {
+  const reorder = useWorkspace((s) => s.reorderConnections);
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      className={`drop-tail ${over ? "over" : ""}`}
+      data-group={group}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const id = e.dataTransfer.getData(DRAG_MIME);
+        if (id) void reorder(id, null);
+      }}
+    />
+  );
+}
 
 function ConnectionNode({
   conn,
@@ -113,6 +140,7 @@ function ConnectionNode({
   const showSystem = useUi((s) => s.showSystemObjects);
   const toast = useWorkspace((s) => s.toast);
   const { open } = useContextMenu();
+  const [dragOver, setDragOver] = useState(false);
   const status = session?.status;
   const isOpen = status === "open";
   const expanded = isOpen && session?.expanded.root !== false;
@@ -189,11 +217,30 @@ function ConnectionNode({
   return (
     <div>
       <div
-        className={`tree-row conn ${activeTab?.connectionId === conn.id ? "active" : ""}`}
+        className={`tree-row conn ${activeTab?.connectionId === conn.id ? "active" : ""} ${dragOver ? "drag-over" : ""}`}
         onClick={onClick}
         onDoubleClick={() => openConnectionDialog(conn)}
         onContextMenu={(e) => open(e, menu)}
         title={`${conn.user ? conn.user + "@" : ""}${conn.host}:${conn.port}`}
+        draggable
+        data-conn-id={conn.id}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(DRAG_MIME, conn.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const id = e.dataTransfer.getData(DRAG_MIME);
+          if (id && id !== conn.id) void ws.reorderConnections(id, conn.id);
+        }}
       >
         <Icon name="chevronRight" size={14} className={`chev ${expanded ? "open" : ""} ${isOpen ? "" : "hidden"}`} />
         <span className="dot" style={{ background: conn.color || DRIVER_COLOR[conn.driver] }} />

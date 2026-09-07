@@ -1,7 +1,68 @@
 import type { Cell, ColumnKind, ResultColumn } from "@/types";
 
+let currentLocale: string | undefined;
+let formatCells = true;
+const numberFmt = new Map<string, Intl.NumberFormat>();
+const dateFmt = new Map<string, Intl.DateTimeFormat>();
+
+/** Called once from the settings hook; every formatter below follows it. */
+export function setFormatOptions(locale: string, enabled: boolean) {
+  currentLocale = locale === "auto" ? undefined : locale;
+  formatCells = enabled;
+  numberFmt.clear();
+  dateFmt.clear();
+}
+
+function nf(key: string, opts: Intl.NumberFormatOptions): Intl.NumberFormat {
+  let f = numberFmt.get(key);
+  if (!f) numberFmt.set(key, (f = new Intl.NumberFormat(currentLocale, opts)));
+  return f;
+}
+function df(key: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  let f = dateFmt.get(key);
+  if (!f) dateFmt.set(key, (f = new Intl.DateTimeFormat(currentLocale, opts)));
+  return f;
+}
+
 export function formatNumber(n: number): string {
-  return new Intl.NumberFormat(undefined).format(n);
+  return nf("int", {}).format(n);
+}
+
+export function formatDateTime(d: Date | number): string {
+  return df("dt", { dateStyle: "short", timeStyle: "medium" }).format(d);
+}
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_DATETIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+
+/**
+ * What the grid shows for a value: numbers get grouping separators and dates
+ * follow the chosen locale. Off by setting, or for anything that is not a
+ * plain number / ISO date, it is the raw text (`cellText`).
+ */
+export function displayText(v: Cell, kind: ColumnKind): string {
+  if (!formatCells || v === null || v === undefined) return cellText(v);
+  if (typeof v === "number") {
+    return Number.isInteger(v) ? nf("int", {}).format(v) : nf("dec", { maximumFractionDigits: 20 }).format(v);
+  }
+  if (kind === "date" && typeof v === "string") {
+    let m = ISO_DATETIME.exec(v);
+    if (m) {
+      const [, y, mo, d, h, mi, s, frac, tz] = m;
+      const iso = `${y}-${mo}-${d}T${h}:${mi}:${s ?? "00"}${frac ?? ""}${tz ? tz.replace(/^([+-]\d{2})(\d{2})$/, "$1:$2") : ""}`;
+      const date = new Date(iso);
+      if (!isNaN(date.getTime())) {
+        return df(s ? "dt" : "dt-short", { dateStyle: "short", timeStyle: s ? "medium" : "short" }).format(date);
+      }
+      return v;
+    }
+    m = ISO_DATE.exec(v);
+    if (m) {
+      const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return df("d", { dateStyle: "short" }).format(date);
+    }
+  }
+  return cellText(v);
 }
 
 export function formatBytes(n: number): string {

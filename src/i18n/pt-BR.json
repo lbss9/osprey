@@ -376,7 +376,12 @@
     "themeDesc": "Coloque um arquivo JSON na pasta de temas para criar o seu; mudanças aplicam na hora.",
     "themesFolder": "Pasta de temas",
     "themeExport": "Exportar atual",
-    "themeExported": "Tema salvo na pasta de temas como my-theme.json"
+    "themeExported": "Tema salvo na pasta de temas como my-theme.json",
+    "locale": "Formato de números e datas",
+    "localeHint": "Como números e datas aparecem nas grades; copiar e editar sempre usam o valor bruto.",
+    "localeAuto": "Seguir o sistema",
+    "formatValues": "Formatar números e datas nas grades",
+    "formatValuesHint": "1234567.5 → 1.234.567,5 e 2026-12-31 → 31/12/2026"
   },
   "update": {
     "title": "Osprey {{version}} está pronto",

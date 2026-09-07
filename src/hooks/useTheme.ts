@@ -3,6 +3,7 @@ import { onEvent } from "@/services/events";
 import { useThemes } from "@/store/themes";
 import { useUi } from "@/store/ui";
 import { applyTheme, AUTO_ID, BUILTIN } from "@/theme/themes";
+import { setFormatOptions } from "@/utils/format";
 
 /**
  * Applies the selected theme (built-in, JSON from the themes folder, or
@@ -13,6 +14,8 @@ export function useTheme() {
   const fontSize = useUi((s) => s.fontSize);
   const editorFontSize = useUi((s) => s.editorFontSize);
   const zoom = useUi((s) => s.zoom);
+  const locale = useUi((s) => s.locale);
+  const formatValues = useUi((s) => s.formatValues);
   const all = useThemes((s) => s.all);
   const reload = useThemes((s) => s.reload);
 
@@ -31,6 +34,10 @@ export function useTheme() {
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, [theme, all]);
+
+  useEffect(() => {
+    setFormatOptions(locale, formatValues);
+  }, [locale, formatValues]);
 
   useEffect(() => {
     const root = document.documentElement.style;

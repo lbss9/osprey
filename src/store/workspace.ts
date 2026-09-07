@@ -40,6 +40,8 @@ interface WorkspaceState {
   groupsCollapsed: Record<string, boolean>;
 
   loadConnections: () => Promise<void>;
+  /** move connection `id` before `beforeId` (or to the end) and persist the order */
+  reorderConnections: (id: string, beforeId: string | null) => Promise<void>;
   connect: (id: string, database?: string) => Promise<boolean>;
   disconnect: (id: string) => Promise<void>;
   loadSchemas: (id: string) => Promise<void>;
@@ -78,6 +80,21 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
     try {
       const connections = await api.connectionsList();
       set({ connections });
+    } catch (e) {
+      get().toast(translateError(e), "error");
+    }
+  },
+
+  reorderConnections: async (id, beforeId) => {
+    const list = get().connections.filter((c) => c.id !== id);
+    const moving = get().connections.find((c) => c.id === id);
+    if (!moving || id === beforeId) return;
+    const at = beforeId ? list.findIndex((c) => c.id === beforeId) : list.length;
+    list.splice(at < 0 ? list.length : at, 0, moving);
+    const connections = list.map((c, position) => ({ ...c, position }));
+    set({ connections });
+    try {
+      await api.connectionsReorder(connections.map((c) => c.id));
     } catch (e) {
       get().toast(translateError(e), "error");
     }

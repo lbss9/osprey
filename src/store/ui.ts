@@ -20,6 +20,10 @@ export type ThemeChoice = string;
 
 interface UiState {
   theme: ThemeChoice;
+  /** BCP-47 tag for numbers/dates, or "auto" for the OS locale */
+  locale: string;
+  /** format numbers and dates in grids (raw values are always used for copy/edit) */
+  formatValues: boolean;
   fontSize: number;
   editorFontSize: number;
   zoom: number;
@@ -50,6 +54,8 @@ export const useUi = create<UiState>()(
   persist(
     (set) => ({
       theme: "auto",
+      locale: "auto",
+      formatValues: true,
       fontSize: 13,
       editorFontSize: 13,
       zoom: 1,
@@ -79,6 +85,8 @@ export const useUi = create<UiState>()(
       name: "osprey-ui",
       partialize: (s) => ({
         theme: s.theme,
+        locale: s.locale,
+        formatValues: s.formatValues,
         fontSize: s.fontSize,
         editorFontSize: s.editorFontSize,
         zoom: s.zoom,

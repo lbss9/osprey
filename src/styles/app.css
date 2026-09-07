@@ -3011,3 +3011,19 @@ kbd {
 .memory-row .faint {
   color: var(--text-faint);
 }
+
+/* ------------------------------ drag & drop ------------------------------- */
+.tree-row.conn.drag-over {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.drop-tail {
+  height: 6px;
+  margin: 0 8px;
+  border-radius: 3px;
+}
+.drop-tail.over {
+  background: var(--accent);
+}
+.tab.drag-over {
+  box-shadow: inset 2px 0 0 var(--accent);
+}

@@ -4,7 +4,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import Icon from "@/components/atoms/Icon";
 import { useContextMenu, type ContextMenuItem } from "@/components/molecules/ContextMenu";
 import { copyText } from "@/utils/clipboard";
-import { cellEditText, cellText, parseEdited, rowToCsv, rowToJson, rowsToTsv } from "@/utils/format";
+import { useUi } from "@/store/ui";
+import { cellEditText, cellText, displayText, parseEdited, rowToCsv, rowToJson, rowsToTsv } from "@/utils/format";
 import type { Cell, EditValue, ResultColumn, SortSpec } from "@/types";
 
 const ROW_H = 28;
@@ -100,6 +101,9 @@ export default function DataGrid(p: DataGridProps) {
   }, [widths]);
 
   /* -------------------------------- selection ------------------------------- */
+  // re-render cells when the number/date format settings change
+  useUi((st) => st.locale);
+  useUi((st) => st.formatValues);
   const selRange = useMemo(() => {
     if (!focus) return null;
     const a = anchor ?? focus;
@@ -450,7 +454,7 @@ function CellContent({ value, kind, nullText }: { value: EditValue; kind: Result
   if (value === null || value === undefined) return <span className="null">{nullText}</span>;
   if (isDefault(value)) return <span className="null">DEFAULT</span>;
   if (kind === "bool" && typeof value === "boolean") return <span className="cell-text">{value ? "true" : "false"}</span>;
-  const text = cellText(value);
+  const text = displayText(value, kind);
   return <span className="cell-text">{text.length > 500 ? text.slice(0, 500) + "…" : text}</span>;
 }
 
