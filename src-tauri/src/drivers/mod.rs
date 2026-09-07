@@ -6,6 +6,7 @@ pub mod mysql;
 pub mod postgres;
 pub mod redis;
 pub mod sql;
+pub mod sqlite;
 pub mod ssh;
 pub mod value;
 
@@ -84,6 +85,9 @@ pub async fn connect(
     ssh_secret: Option<&str>,
     database: Option<&str>,
 ) -> AppResult<(Session, Option<Arc<ssh::SshTunnel>>)> {
+    if config.driver == DriverKind::Sqlite {
+        return Ok((connect_direct(config, password, database).await?, None));
+    }
     if let Some(ssh_cfg) = ssh::SshConfig::from_options(&config.options, ssh_secret) {
         let tunnel = Arc::new(ssh::SshTunnel::open(&ssh_cfg, &config.host, config.port).await?);
         let mut local = config.clone();
@@ -126,6 +130,10 @@ async fn connect_direct(
         DriverKind::Redis => {
             let r = redis::RedisSession::connect(config, password, database).await?;
             Ok(Session::Redis(Arc::new(r)))
+        }
+        DriverKind::Sqlite => {
+            let d = sqlite::SqliteDriver::connect(config).await?;
+            Ok(Session::Sql(Arc::new(d)))
         }
     }
 }

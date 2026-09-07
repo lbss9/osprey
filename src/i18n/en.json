@@ -152,7 +152,11 @@
     "sshKeyPath": "Key file",
     "sshPassphrase": "Key passphrase (optional)",
     "browse": "Browse…",
-    "sshPasswordKeep": "Leave blank to keep the saved one"
+    "sshPasswordKeep": "Leave blank to keep the saved one",
+    "sqlite": "SQLite",
+    "sqliteFile": "Database file",
+    "sqliteCreate": "Create the file if it does not exist",
+    "sqliteCreateHint": "Off: connecting to a missing path is an error"
   },
   "tabs": {
     "query": "Query",
@@ -452,5 +456,28 @@
     "tables": "Tables",
     "connections": "Connections",
     "actions": "Actions"
+  },
+  "ddl": {
+    "createTable": "Create table…",
+    "addColumn": "Add column",
+    "alterColumn": "Edit column",
+    "dropColumn": "Drop column",
+    "createIndex": "Add index",
+    "dropIndex": "Drop index",
+    "renameTable": "Rename table",
+    "tableName": "Table name",
+    "newName": "New name",
+    "columnName": "Column name",
+    "type": "Type",
+    "default": "Default (SQL expression)",
+    "autoIncrement": "Auto increment",
+    "indexName": "Index name",
+    "changeDefault": "Change the default value",
+    "changeDefaultHint": "Leave off to keep the current default; on with an empty value drops it",
+    "sqliteAlter": "SQLite can only rename columns in place; type, nullability and default need a new table.",
+    "run": "Run",
+    "applied": "Structure updated",
+    "dropColumnConfirm": "Drop column \"{{name}}\"? Its data is lost.",
+    "dropIndexConfirm": "Drop index \"{{name}}\"?"
   }
 }

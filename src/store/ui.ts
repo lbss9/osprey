@@ -4,7 +4,16 @@
  */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { ConnectionConfig } from "@/types";
+import type { ColumnInfo, ConnectionConfig } from "@/types";
+
+export interface DdlDialogState {
+  connectionId: string;
+  schema: string;
+  table?: string;
+  mode: "createTable" | "addColumn" | "alterColumn" | "createIndex" | "renameTable";
+  column?: ColumnInfo;
+  columns?: ColumnInfo[];
+}
 
 export type ThemeChoice = "auto" | "dark" | "light";
 
@@ -25,6 +34,7 @@ interface UiState {
   settingsOpen: boolean;
   settingsTab: string;
   paletteOpen: boolean;
+  ddlDialog: DdlDialogState | null;
   connectionDialog: { open: boolean; editing?: ConnectionConfig | null; clone?: boolean };
 
   set: (patch: Partial<UiState>) => void;
@@ -52,6 +62,7 @@ export const useUi = create<UiState>()(
       settingsOpen: false,
       settingsTab: "general",
       paletteOpen: false,
+      ddlDialog: null,
       connectionDialog: { open: false, editing: null },
 
       set: (patch) => set(patch),

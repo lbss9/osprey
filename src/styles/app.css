@@ -27,6 +27,7 @@
   --pg: #5b93ee;
   --mysql: #e2ac36;
   --redis: #ec6060;
+  --sqlite: #4cc088;
 
   --k-num: #77a9f5;
   --k-str: #6fce9c;
@@ -73,6 +74,7 @@
   --pg: #2b64c4;
   --mysql: #b3820f;
   --redis: #cf3b3b;
+  --sqlite: #1f9463;
 
   --k-num: #2b64c4;
   --k-str: #1f8a52;
@@ -2764,4 +2766,57 @@ kbd {
   padding: 24px;
   text-align: center;
   color: var(--text-faint);
+}
+
+/* ------------------------------ structure editor --------------------------- */
+.ddl-cols {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ddl-col {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr auto auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+.ddl-col.ddl-head {
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ddl-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+.ddl-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ddl-order {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75em;
+  font-weight: 700;
+}
+.table tr.row-menu {
+  cursor: context-menu;
+}
+.table tr.row-menu:hover td {
+  background: var(--panel-2);
+}
+.driver-cards {
+  grid-template-columns: repeat(4, 1fr);
 }

@@ -5,7 +5,7 @@ import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
 import { driverLabel, relativeTime } from "@/utils/format";
 
-const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)" };
+const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)", sqlite: "var(--sqlite)" };
 
 /** Shown when no tab is open. */
 export default function WelcomeView() {

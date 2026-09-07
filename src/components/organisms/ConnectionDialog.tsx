@@ -22,6 +22,7 @@ const DRIVERS: { id: DriverKind; color: string; hint: string }[] = [
   { id: "postgres", color: "var(--pg)", hint: "5432" },
   { id: "mysql", color: "var(--mysql)", hint: "3306" },
   { id: "redis", color: "var(--redis)", hint: "6379" },
+  { id: "sqlite", color: "var(--sqlite)", hint: "file" },
 ];
 
 function blank(driver: DriverKind = "postgres"): ConnectionConfig {
@@ -30,7 +31,7 @@ function blank(driver: DriverKind = "postgres"): ConnectionConfig {
     name: "",
     driver,
     host: "localhost",
-    port: driver === "postgres" ? 5432 : driver === "mysql" ? 3306 : 6379,
+    port: driver === "postgres" ? 5432 : driver === "mysql" ? 3306 : driver === "redis" ? 6379 : 0,
     user: driver === "postgres" ? "postgres" : driver === "mysql" ? "root" : "",
     database: driver === "redis" ? "0" : "",
     sslMode: driver === "redis" ? "disable" : "prefer",
@@ -154,6 +155,7 @@ export default function ConnectionDialog() {
   };
 
   const isRedis = form.driver === "redis";
+  const isSqlite = form.driver === "sqlite";
   const editing = !!dlg.editing && !dlg.clone;
   const sslOptions = [
     { value: "disable", label: t("connection.sslDisable") },
@@ -171,10 +173,12 @@ export default function ConnectionDialog() {
             <Tab active={tab === "general"} onClick={() => setTab("general")}>
               {t("connection.general")}
             </Tab>
+            {!isSqlite && (
             <Tab active={tab === "ssh"} onClick={() => setTab("ssh")}>
               {t("connection.ssh")}
               {ssh.enabled && <span className="tab-dot" />}
             </Tab>
+            )}
             <Tab active={tab === "advanced"} onClick={() => setTab("advanced")}>
               {t("connection.advanced")}
             </Tab>
@@ -200,6 +204,30 @@ export default function ConnectionDialog() {
                 <Field label={t("connection.name")} span2>
                   <Input value={form.name} placeholder={t("connection.namePlaceholder")} onChange={(e) => set({ name: e.target.value })} autoFocus />
                 </Field>
+                {isSqlite && (
+                  <>
+                    <Field label={t("connection.sqliteFile")} span2>
+                      <div className="input-row">
+                        <Input mono value={form.database} placeholder="C:\\data\\app.db" onChange={(e) => set({ database: e.target.value })} />
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          onClick={async () => {
+                            const p = await openFileDialog(t("connection.sqliteFile"));
+                            if (p) set({ database: p, name: form.name || p.split(/[\\/]/).pop() || "" });
+                          }}
+                        >
+                          {t("connection.browse")}
+                        </Button>
+                      </div>
+                    </Field>
+                    <div className="span2">
+                      <ToggleRow label={t("connection.sqliteCreate")} desc={t("connection.sqliteCreateHint")} checked={!!form.options?.create} onChange={(v) => setOption("create", v || "")} />
+                    </div>
+                  </>
+                )}
+                {!isSqlite && (
+                <>
                 <Field label={t("connection.host")}>
                   <Input mono value={form.host} onChange={(e) => set({ host: e.target.value })} />
                 </Field>
@@ -230,6 +258,8 @@ export default function ConnectionDialog() {
                 <Field label={t("connection.ssl")}>
                   <Dropdown value={form.sslMode} options={sslOptions} onChange={(v) => set({ sslMode: v as SslMode })} ariaLabel={t("connection.ssl")} />
                 </Field>
+                </>
+                )}
                 <Field label={t("connection.color")}>
                   <div className="color-swatches">
                     <button type="button" className={`swatch none ${!form.color ? "active" : ""}`} onClick={() => set({ color: null })} title={t("common.none")} />
@@ -338,10 +368,10 @@ export default function ConnectionDialog() {
           <Button variant="ghost" onClick={close} disabled={!!busy}>
             {t("common.cancel")}
           </Button>
-          <Button variant="secondary" onClick={() => void doSave(false)} disabled={!!busy || !form.host}>
+          <Button variant="secondary" onClick={() => void doSave(false)} disabled={!!busy || (isSqlite ? !form.database : !form.host)}>
             {t("connection.save")}
           </Button>
-          <Button variant="primary" onClick={() => void doSave(true)} disabled={!!busy || !form.host}>
+          <Button variant="primary" onClick={() => void doSave(true)} disabled={!!busy || (isSqlite ? !form.database : !form.host)}>
             {busy === "save" ? <Spinner /> : <Icon name="plug" size={14} />}
             {t("connection.saveAndConnect")}
           </Button>

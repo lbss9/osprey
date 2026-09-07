@@ -37,6 +37,33 @@ pub fn pg_kind(type_name: &str) -> ColumnKind {
     }
 }
 
+/// SQLite declared type (type affinity rules, loosely) → kind.
+pub fn sqlite_kind(decl: &str) -> ColumnKind {
+    let t = decl.trim().to_ascii_uppercase();
+    if t.is_empty() {
+        return ColumnKind::Other;
+    }
+    if t.starts_with("BOOL") {
+        return ColumnKind::Bool;
+    }
+    if t.contains("INT") || t.contains("REAL") || t.contains("FLOA") || t.contains("DOUB") || t.contains("NUM") || t.contains("DEC") {
+        return ColumnKind::Number;
+    }
+    if t.contains("CHAR") || t.contains("CLOB") || t.contains("TEXT") {
+        return ColumnKind::String;
+    }
+    if t.contains("BLOB") {
+        return ColumnKind::Bytes;
+    }
+    if t.contains("JSON") {
+        return ColumnKind::Json;
+    }
+    if t.contains("DATE") || t.contains("TIME") {
+        return ColumnKind::Date;
+    }
+    ColumnKind::Other
+}
+
 /// MySQL `COLUMN_TYPE` (e.g. `int(11) unsigned`, `varchar(255)`) → kind.
 pub fn mysql_kind_from_name(column_type: &str) -> ColumnKind {
     let t = column_type.trim().to_ascii_lowercase();

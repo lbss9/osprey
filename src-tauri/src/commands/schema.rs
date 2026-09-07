@@ -2,7 +2,9 @@ use tauri::State;
 
 use crate::drivers::Session;
 use crate::error::CmdResult;
-use crate::models::{ColumnInfo, TableInfo, TableStructure};
+use crate::models::{ColumnInfo, DdlOp, TableInfo, TableStructure};
+use crate::store::connections as repo;
+use crate::error::AppError;
 use crate::state::AppState;
 
 /// `include_system` lists template databases / catalog schemas too (a user
@@ -49,6 +51,29 @@ pub async fn table_columns(
 ) -> CmdResult<Vec<ColumnInfo>> {
     let s = state.session(&connection_id).await?.sql()?;
     Ok(s.columns(&schema, &table).await?)
+}
+
+/// Statements a structure edit would run, without running them.
+#[tauri::command]
+pub async fn ddl_preview(state: State<'_, AppState>, connection_id: String, op: DdlOp) -> CmdResult<Vec<String>> {
+    let s = state.session(&connection_id).await?.sql()?;
+    Ok(s.dialect().ddl(&op)?)
+}
+
+/// Run a structure edit (one transaction where the engine supports it).
+#[tauri::command]
+pub async fn ddl_apply(state: State<'_, AppState>, connection_id: String, op: DdlOp) -> CmdResult<Vec<String>> {
+    let read_only = {
+        let db = state.lock_db()?;
+        repo::get(&db, &connection_id)?.map(|(c, _)| c.read_only).unwrap_or(false)
+    };
+    if read_only {
+        return Err(AppError::ReadOnly.into());
+    }
+    let s = state.session(&connection_id).await?.sql()?;
+    let statements = s.dialect().ddl(&op)?;
+    s.execute_transaction(&statements).await?;
+    Ok(statements)
 }
 
 #[tauri::command]

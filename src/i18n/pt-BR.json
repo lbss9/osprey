@@ -152,7 +152,11 @@
     "sshKeyPath": "Arquivo da chave",
     "sshPassphrase": "Senha da chave (opcional)",
     "browse": "Procurar…",
-    "sshPasswordKeep": "Deixe em branco para manter a salva"
+    "sshPasswordKeep": "Deixe em branco para manter a salva",
+    "sqlite": "SQLite",
+    "sqliteFile": "Arquivo do banco",
+    "sqliteCreate": "Criar o arquivo se não existir",
+    "sqliteCreateHint": "Desligado: conectar num caminho inexistente dá erro"
   },
   "tabs": {
     "query": "Consulta",
@@ -452,5 +456,28 @@
     "tables": "Tabelas",
     "connections": "Conexões",
     "actions": "Ações"
+  },
+  "ddl": {
+    "createTable": "Criar tabela…",
+    "addColumn": "Adicionar coluna",
+    "alterColumn": "Editar coluna",
+    "dropColumn": "Remover coluna",
+    "createIndex": "Adicionar índice",
+    "dropIndex": "Remover índice",
+    "renameTable": "Renomear tabela",
+    "tableName": "Nome da tabela",
+    "newName": "Novo nome",
+    "columnName": "Nome da coluna",
+    "type": "Tipo",
+    "default": "Padrão (expressão SQL)",
+    "autoIncrement": "Auto incremento",
+    "indexName": "Nome do índice",
+    "changeDefault": "Alterar o valor padrão",
+    "changeDefaultHint": "Desligado mantém o padrão atual; ligado com valor vazio remove o padrão",
+    "sqliteAlter": "No SQLite só dá para renomear a coluna no lugar; tipo, nulo e padrão exigem tabela nova.",
+    "run": "Executar",
+    "applied": "Estrutura atualizada",
+    "dropColumnConfirm": "Remover a coluna \"{{name}}\"? Os dados dela são perdidos.",
+    "dropIndexConfirm": "Remover o índice \"{{name}}\"?"
   }
 }

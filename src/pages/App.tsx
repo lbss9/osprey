@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import Toasts from "@/components/molecules/Toasts";
 import ConnectionDialog from "@/components/organisms/ConnectionDialog";
 import SettingsDialog from "@/components/organisms/SettingsDialog";
+import StructureEditor from "@/components/organisms/StructureEditor";
 import CommandPalette, { type PaletteItem } from "@/components/organisms/CommandPalette";
 import TitleBar from "@/components/organisms/TitleBar";
 import WorkspaceLayout from "@/components/templates/WorkspaceLayout";
@@ -151,6 +152,7 @@ export default function App() {
       <WorkspaceLayout onNewQuery={newQuery} />
       <ConnectionDialog />
       <SettingsDialog />
+      <StructureEditor />
       <Toasts />
     </div>
   );

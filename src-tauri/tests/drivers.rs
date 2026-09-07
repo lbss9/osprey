@@ -528,3 +528,109 @@ async fn ssh_tunnel_reaches_postgres() {
     let e = drivers::connect(&cfg, Some(&pass), None, None).await.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(e.starts_with("errors.auth|"), "{e}");
 }
+
+/* ================================== SQLite ================================== */
+
+/// Runs everywhere (no server): a temp file exercises the SQLite driver and
+/// the DDL builder end to end.
+#[tokio::test]
+async fn sqlite_end_to_end() {
+    let dir = std::env::temp_dir().join(format!("osprey-sqlite-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("test.db");
+    let _ = std::fs::remove_file(&path);
+    let cfg = ConnectionConfig {
+        id: "test-sqlite".into(),
+        name: "sqlite".into(),
+        driver: DriverKind::Sqlite,
+        host: String::new(),
+        port: 0,
+        user: String::new(),
+        database: path.to_string_lossy().into_owned(),
+        ssl_mode: SslMode::Disable,
+        color: None,
+        group: None,
+        read_only: false,
+        options: json!({ "create": true }),
+        position: 0,
+        created_at: 0,
+        last_used_at: None,
+        has_password: false,
+        has_ssh_password: false,
+    };
+    let (session, tunnel) = drivers::connect(&cfg, None, None, None).await.expect("open sqlite");
+    assert!(tunnel.is_none());
+    let d = session.sql().unwrap();
+    let info = d.server_info().await.unwrap();
+    println!("sqlite {} at {:?}", info.version, info.database);
+
+    // DDL builder → real statements
+    let dialect = Dialect::Sqlite;
+    let create = DdlOp::CreateTable {
+        schema: "main".into(),
+        table: "people".into(),
+        columns: vec![
+            DdlColumn { name: "id".into(), data_type: "INTEGER".into(), nullable: false, default: None, primary_key: true, auto_increment: true },
+            DdlColumn { name: "name".into(), data_type: "TEXT".into(), nullable: false, default: None, primary_key: false, auto_increment: false },
+            DdlColumn { name: "age".into(), data_type: "INTEGER".into(), nullable: true, default: Some("18".into()), primary_key: false, auto_increment: false },
+            DdlColumn { name: "active".into(), data_type: "BOOLEAN".into(), nullable: true, default: Some("1".into()), primary_key: false, auto_increment: false },
+        ],
+    };
+    d.execute_transaction(&dialect.ddl(&create).unwrap()).await.unwrap();
+    d.execute_transaction(&dialect.ddl(&DdlOp::CreateIndex { schema: "main".into(), table: "people".into(), name: "people_name_idx".into(), columns: vec!["name".into()], unique: false }).unwrap()).await.unwrap();
+    let inserts: Vec<String> = (1..=300).map(|i| format!("INSERT INTO people (name, age) VALUES ('person {i}', {})", 18 + i % 40)).collect();
+    assert_eq!(d.execute_transaction(&inserts).await.unwrap(), 300);
+
+    assert_eq!(d.list_schemas(false).await.unwrap(), vec!["main"]);
+    let tables = d.list_tables("main").await.unwrap();
+    assert!(tables.iter().any(|t| t.name == "people" && t.kind == "table"));
+    let cols = d.columns("main", "people").await.unwrap();
+    let id = cols.iter().find(|c| c.name == "id").unwrap();
+    assert!(id.primary_key && id.auto_increment);
+    assert_eq!(cols.iter().find(|c| c.name == "age").unwrap().default.as_deref(), Some("18"));
+    let st = d.structure("main", "people").await.unwrap();
+    assert!(st.indexes.iter().any(|i| i.name == "people_name_idx" && i.columns == vec!["name"]));
+    assert!(st.ddl.as_deref().unwrap().starts_with("CREATE TABLE"));
+
+    // paging with filters, typed cells
+    let req = page("main", "people", vec![TableFilter { column: "name".into(), op: "contains".into(), value: Some("PERSON 12".into()) }], Some(SortSpec { column: "id".into(), desc: true }), 10, 0);
+    let set = d.query(&dialect.select_page(&req).unwrap(), 10).await.unwrap().pop().unwrap();
+    assert!(set.rows.len() > 1 && set.rows.len() <= 10);
+    assert!(cell(&set, 0, "id").is_number());
+    assert_eq!(cell(&set, 0, "active"), &Value::Bool(true));
+    assert_eq!(set.columns.iter().find(|c| c.name == "active").unwrap().kind, ColumnKind::Bool);
+    let n = d.query(&dialect.select_count(&req).unwrap(), 1).await.unwrap().pop().unwrap().rows[0][0].as_i64().unwrap();
+    assert!(n >= set.rows.len() as i64 && set.rows.len() == 10, "count {n}");
+
+    // grid edits in one transaction + rollback on error
+    let changes = ApplyChangesRequest {
+        schema: "main".into(),
+        table: "people".into(),
+        preview: false,
+        changes: vec![
+            RowChange::Update { key: json!({"id": 1}).as_object().unwrap().clone(), set: json!({"name": "O'Brien", "age": null}).as_object().unwrap().clone() },
+            RowChange::Insert { values: json!({"name": "new one", "age": 99}).as_object().unwrap().clone() },
+            RowChange::Delete { key: json!({"id": 2}).as_object().unwrap().clone() },
+        ],
+    };
+    assert_eq!(d.execute_transaction(&dialect.changes(&changes).unwrap()).await.unwrap(), 3);
+    let check = d.query("SELECT name, age FROM people WHERE id = 1; SELECT count(*) AS n FROM people", 5).await.unwrap();
+    assert_eq!(check.len(), 2);
+    assert_eq!(cell(&check[0], 0, "name"), "O'Brien");
+    assert_eq!(cell(&check[0], 0, "age"), &Value::Null);
+    assert_eq!(check[1].rows[0][0], json!(300));
+    assert!(d.execute_transaction(&["UPDATE people SET age = 1 WHERE id = 3".into(), "UPDATE people SET nope = 1".into()]).await.is_err());
+    let rolled = d.query("SELECT age FROM people WHERE id = 3", 1).await.unwrap().pop().unwrap();
+    assert_ne!(rolled.rows[0][0], json!(1));
+
+    // alter: rename works, type change is refused with a clear message
+    d.execute_transaction(&dialect.ddl(&DdlOp::AlterColumn { schema: "main".into(), table: "people".into(), name: "age".into(), new_name: Some("years".into()), data_type: None, nullable: None, set_default: false, default: None }).unwrap()).await.unwrap();
+    assert!(d.columns("main", "people").await.unwrap().iter().any(|c| c.name == "years"));
+    let e = dialect.ddl(&DdlOp::AlterColumn { schema: "main".into(), table: "people".into(), name: "years".into(), new_name: None, data_type: Some("TEXT".into()), nullable: None, set_default: false, default: None }).unwrap_err().to_string();
+    assert!(e.starts_with("errors.unsupported|"), "{e}");
+    let e = d.query("SELECT * FROM missing", 1).await.unwrap_err().to_string();
+    assert!(e.starts_with("errors.query|") && e.contains("missing"), "{e}");
+    d.close().await;
+    let _ = std::fs::remove_dir_all(&dir);
+    println!("sqlite OK");
+}

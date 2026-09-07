@@ -3,7 +3,7 @@
  * Rust side serializes everything as camelCase.
  */
 
-export type DriverKind = "postgres" | "mysql" | "redis";
+export type DriverKind = "postgres" | "mysql" | "redis" | "sqlite";
 export type SslMode = "disable" | "prefer" | "require" | "verify";
 
 export interface ConnectionConfig {
@@ -259,6 +259,28 @@ export interface SavedQuery {
   position: number;
   updatedAt: number;
 }
+
+/* ----------------------------------- ddl ----------------------------------- */
+
+export interface DdlColumn {
+  name: string;
+  dataType: string;
+  nullable: boolean;
+  default?: string | null;
+  primaryKey: boolean;
+  autoIncrement: boolean;
+}
+
+export type DdlOp =
+  | { kind: "createTable"; schema: string; table: string; columns: DdlColumn[] }
+  | { kind: "addColumn"; schema: string; table: string; column: DdlColumn }
+  | { kind: "alterColumn"; schema: string; table: string; name: string; newName?: string; dataType?: string; nullable?: boolean; setDefault: boolean; default?: string | null }
+  | { kind: "dropColumn"; schema: string; table: string; name: string }
+  | { kind: "renameTable"; schema: string; table: string; newName: string }
+  | { kind: "createIndex"; schema: string; table: string; name: string; columns: string[]; unique: boolean }
+  | { kind: "dropIndex"; schema: string; table: string; name: string }
+  | { kind: "dropTable"; schema: string; table: string }
+  | { kind: "truncateTable"; schema: string; table: string };
 
 export interface AppInfo {
   version: string;

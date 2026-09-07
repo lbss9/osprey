@@ -12,6 +12,7 @@ pub enum DriverKind {
     Postgres,
     Mysql,
     Redis,
+    Sqlite,
 }
 
 impl DriverKind {
@@ -20,6 +21,7 @@ impl DriverKind {
             DriverKind::Postgres => "postgres",
             DriverKind::Mysql => "mysql",
             DriverKind::Redis => "redis",
+            DriverKind::Sqlite => "sqlite",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -27,6 +29,7 @@ impl DriverKind {
             "postgres" => Some(DriverKind::Postgres),
             "mysql" => Some(DriverKind::Mysql),
             "redis" => Some(DriverKind::Redis),
+            "sqlite" => Some(DriverKind::Sqlite),
             _ => None,
         }
     }
@@ -35,6 +38,7 @@ impl DriverKind {
             DriverKind::Postgres => 5432,
             DriverKind::Mysql => 3306,
             DriverKind::Redis => 6379,
+            DriverKind::Sqlite => 0,
         }
     }
 }
@@ -289,6 +293,61 @@ pub struct ApplyChangesResult {
     pub statements: Vec<String>,
     pub affected: u64,
     pub executed: bool,
+}
+
+/* ----------------------------------- ddl ----------------------------------- */
+
+/// Column definition used by CREATE TABLE / ADD COLUMN. `default` is a raw
+/// SQL expression (the user writes `'x'`, `0` or `now()`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DdlColumn {
+    pub name: String,
+    pub data_type: String,
+    #[serde(default = "default_true")]
+    pub nullable: bool,
+    #[serde(default)]
+    pub default: Option<String>,
+    #[serde(default)]
+    pub primary_key: bool,
+    #[serde(default)]
+    pub auto_increment: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Structure edits the UI asks for. Every op names its table; the dialect
+/// turns it into one or more statements (see `sql.rs`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum DdlOp {
+    CreateTable { schema: String, table: String, columns: Vec<DdlColumn> },
+    AddColumn { schema: String, table: String, column: DdlColumn },
+    /// Every field is optional; `set_default` distinguishes "leave the
+    /// default alone" from "set it to NULL / drop it".
+    AlterColumn {
+        schema: String,
+        table: String,
+        name: String,
+        #[serde(default)]
+        new_name: Option<String>,
+        #[serde(default)]
+        data_type: Option<String>,
+        #[serde(default)]
+        nullable: Option<bool>,
+        #[serde(default)]
+        set_default: bool,
+        #[serde(default)]
+        default: Option<String>,
+    },
+    DropColumn { schema: String, table: String, name: String },
+    RenameTable { schema: String, table: String, new_name: String },
+    CreateIndex { schema: String, table: String, name: String, columns: Vec<String>, #[serde(default)] unique: bool },
+    DropIndex { schema: String, table: String, name: String },
+    DropTable { schema: String, table: String },
+    TruncateTable { schema: String, table: String },
 }
 
 /* ---------------------------------- redis --------------------------------- */

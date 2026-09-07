@@ -75,6 +75,8 @@ pub fn run() {
             schema_tables,
             table_columns,
             table_structure,
+            ddl_preview,
+            ddl_apply,
             query_run,
             query_cancel,
             history_list,

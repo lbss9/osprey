@@ -15,9 +15,10 @@ import { confirmDialog } from "@/utils/dialog";
 import { formatNumber, quoteIdent } from "@/utils/format";
 import type { ConnectionConfig, TableInfo } from "@/types";
 
-const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)" };
+const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)", sqlite: "var(--sqlite)" };
 
 function connectionUrl(c: ConnectionConfig): string {
+  if (c.driver === "sqlite") return `sqlite:///${c.database}`;
   const scheme = c.driver === "postgres" ? "postgresql" : c.driver;
   const auth = c.user ? `${encodeURIComponent(c.user)}@` : "";
   return `${scheme}://${auth}${c.host}:${c.port}${c.database ? `/${c.database}` : ""}`;
@@ -265,7 +266,9 @@ function SqlNodes({ conn, session, filter, onQuery }: { conn: ConnectionConfig; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, schemas.length]);
 
+  const setUi = useUi((s) => s.set);
   const schemaMenu = (schema: string): ContextMenuItem[] => [
+    ...(!conn.readOnly ? [{ label: t("ddl.createTable"), icon: "plus" as const, onSelect: () => setUi({ ddlDialog: { connectionId: conn.id, schema, mode: "createTable" } }) }] : []),
     { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, schema) },
     { label: t("ctx.querySchema"), icon: "fileCode", onSelect: () => onQuery(conn.driver === "postgres" ? `SET search_path TO ${quoteIdent(schema, conn.driver)};\n` : `USE ${quoteIdent(schema, conn.driver)};\n`) },
     { separator: true },

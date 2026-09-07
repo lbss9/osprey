@@ -10,6 +10,7 @@ import type {
   ColumnInfo,
   ConnectionConfig,
   ConnectionInput,
+  DdlOp,
   HistoryEntry,
   RedisCommandResult,
   RedisMutation,
@@ -60,6 +61,8 @@ export const tableColumns = (connectionId: string, schema: string, table: string
   invoke<ColumnInfo[]>("table_columns", { connectionId, schema, table });
 export const tableStructure = (connectionId: string, schema: string, table: string) =>
   invoke<TableStructure>("table_structure", { connectionId, schema, table });
+export const ddlPreview = (connectionId: string, op: DdlOp) => invoke<string[]>("ddl_preview", { connectionId, op });
+export const ddlApply = (connectionId: string, op: DdlOp) => invoke<string[]>("ddl_apply", { connectionId, op });
 
 /* ---------------------------------- query --------------------------------- */
 

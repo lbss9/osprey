@@ -1,7 +1,7 @@
 import { useWorkspace } from "@/store/workspace";
 import { driverLabel } from "@/utils/format";
 
-const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)" };
+const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)", sqlite: "var(--sqlite)" };
 
 /** Small pill naming the connection a view belongs to. */
 export default function ConnChip({ connectionId }: { connectionId: string }) {

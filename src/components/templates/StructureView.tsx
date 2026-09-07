@@ -6,16 +6,24 @@ import Icon from "@/components/atoms/Icon";
 import Spinner from "@/components/atoms/Spinner";
 import ToolButton from "@/components/molecules/ToolButton";
 import ConnChip from "@/components/molecules/ConnChip";
+import { useContextMenu } from "@/components/molecules/ContextMenu";
+import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
+import { confirmDialog } from "@/utils/dialog";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
 import { copyText } from "@/utils/clipboard";
-import type { Tab, TableStructure } from "@/types";
+import type { ColumnInfo, DdlOp, Tab, TableStructure } from "@/types";
 
 /** Read-only view of columns, indexes, foreign keys and (MySQL) DDL. */
 export default function StructureView({ tab }: { tab: Tab }) {
   const { t } = useTranslation();
   const openTab = useWorkspace((s) => s.openTab);
+  const toast = useWorkspace((s) => s.toast);
+  const updateTab = useWorkspace((s) => s.updateTab);
+  const conn = useWorkspace((s) => s.connections.find((c) => c.id === tab.connectionId));
+  const setUi = useUi((s) => s.set);
+  const { open } = useContextMenu();
   const [data, setData] = useState<TableStructure | null>(null);
   const [error, setError] = useState<string | null>(null);
   const schema = tab.schema ?? "";
@@ -26,6 +34,37 @@ export default function StructureView({ tab }: { tab: Tab }) {
     api.tableStructure(tab.connectionId, schema, table).then(setData).catch((e) => setError(translateError(e)));
   };
   useEffect(load, [tab.connectionId, schema, table]);
+
+  // reload after the structure editor ran something on this table
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const d = (e as CustomEvent).detail as { connectionId: string; schema: string; table?: string };
+      if (d.connectionId !== tab.connectionId || d.schema !== schema) return;
+      if (d.table && d.table !== table) {
+        // renamed
+        updateTab(tab.id, { table: d.table, title: d.table });
+        return;
+      }
+      load();
+    };
+    window.addEventListener("osprey-structure-changed", onChanged);
+    return () => window.removeEventListener("osprey-structure-changed", onChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.connectionId, tab.id, schema, table]);
+
+  const editable = !conn?.readOnly;
+  const openEditor = (mode: "addColumn" | "alterColumn" | "createIndex" | "renameTable", column?: ColumnInfo) =>
+    setUi({ ddlDialog: { connectionId: tab.connectionId, schema, table, mode, column, columns: data?.columns } });
+  const runDdl = async (op: DdlOp, confirmText: string) => {
+    if (!(await confirmDialog(confirmText))) return;
+    try {
+      await api.ddlApply(tab.connectionId, op);
+      toast(t("ddl.applied"), "success");
+      load();
+    } catch (e) {
+      toast(translateError(e), "error");
+    }
+  };
 
   return (
     <div className="main-body">
@@ -42,6 +81,18 @@ export default function StructureView({ tab }: { tab: Tab }) {
         <Button size="sm" onClick={() => openTab({ kind: "table", connectionId: tab.connectionId, title: table, schema, table })}>
           <Icon name="table" size={14} /> {t("sidebar.openTable")}
         </Button>
+        {editable && (
+          <>
+            <span className="sep" />
+            <Button size="sm" variant="secondary" onClick={() => openEditor("addColumn")}>
+              <Icon name="plus" size={13} /> {t("ddl.addColumn")}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => openEditor("createIndex")}>
+              <Icon name="plus" size={13} /> {t("ddl.createIndex")}
+            </Button>
+            <ToolButton icon="pencil" title={t("ddl.renameTable")} onClick={() => openEditor("renameTable")} />
+          </>
+        )}
       </div>
       {error && (
         <div className="messages">
@@ -70,7 +121,20 @@ export default function StructureView({ tab }: { tab: Tab }) {
               </thead>
               <tbody>
                 {data.columns.map((c) => (
-                  <tr key={c.name}>
+                  <tr
+                    key={c.name}
+                    className={editable ? "row-menu" : ""}
+                    onDoubleClick={() => editable && openEditor("alterColumn", c)}
+                    onContextMenu={(e) =>
+                      editable &&
+                      open(e, [
+                        { label: t("ddl.alterColumn"), icon: "pencil", onSelect: () => openEditor("alterColumn", c) },
+                        { label: t("ctx.copyName"), icon: "copy", onSelect: () => void copyText(c.name) },
+                        { separator: true },
+                        { label: t("ddl.dropColumn"), icon: "trash", danger: true, onSelect: () => void runDdl({ kind: "dropColumn", schema, table, name: c.name }, t("ddl.dropColumnConfirm", { name: c.name })) },
+                      ])
+                    }
+                  >
                     <td>{c.primaryKey && <Icon name="key" size={12} style={{ color: "var(--amber)" }} />}</td>
                     <td className="mono">
                       {c.name}
@@ -108,7 +172,19 @@ export default function StructureView({ tab }: { tab: Tab }) {
                 </thead>
                 <tbody>
                   {data.indexes.map((ix) => (
-                    <tr key={ix.name}>
+                    <tr
+                      key={ix.name}
+                      className={editable && !ix.primary ? "row-menu" : ""}
+                      onContextMenu={(e) =>
+                        editable &&
+                        !ix.primary &&
+                        open(e, [
+                          { label: t("ctx.copyName"), icon: "copy", onSelect: () => void copyText(ix.name) },
+                          { separator: true },
+                          { label: t("ddl.dropIndex"), icon: "trash", danger: true, onSelect: () => void runDdl({ kind: "dropIndex", schema, table, name: ix.name }, t("ddl.dropIndexConfirm", { name: ix.name })) },
+                        ])
+                      }
+                    >
                       <td className="mono">{ix.name}</td>
                       <td className="mono">{ix.columns.join(", ")}</td>
                       <td>
