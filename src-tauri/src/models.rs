@@ -84,6 +84,9 @@ pub struct ConnectionConfig {
     /// whether a password is stored for this connection (keychain or fallback)
     #[serde(default)]
     pub has_password: bool,
+    /// whether an SSH password / passphrase is stored
+    #[serde(default)]
+    pub has_ssh_password: bool,
 }
 
 /// What the connection dialog sends when saving or testing.
@@ -94,6 +97,9 @@ pub struct ConnectionInput {
     pub config: ConnectionConfig,
     /// `None` keeps whatever is stored; `Some("")` clears it
     pub password: Option<String>,
+    /// SSH password or key passphrase; same semantics as `password`
+    #[serde(default)]
+    pub ssh_password: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

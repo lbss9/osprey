@@ -7,6 +7,19 @@ use crate::secrets;
 use crate::state::AppState;
 use crate::store::connections as repo;
 
+/// Keychain entry for the SSH password / passphrase of a connection.
+pub fn ssh_key(id: &str) -> String {
+    format!("{id}:ssh")
+}
+
+/// SSH secret for a saved connection (keychain only).
+pub fn resolve_ssh_secret(state: &AppState, id: &str) -> Option<String> {
+    if !state.secrets_ok {
+        return None;
+    }
+    secrets::get_password(&ssh_key(id)).ok().flatten()
+}
+
 /// Password for a saved connection: keychain first, SQLite fallback second.
 pub fn resolve_password(state: &AppState, id: &str) -> AppResult<Option<String>> {
     if state.secrets_ok {
@@ -19,8 +32,11 @@ pub fn resolve_password(state: &AppState, id: &str) -> AppResult<Option<String>>
 }
 
 fn with_password_flag(state: &AppState, mut c: ConnectionConfig) -> ConnectionConfig {
-    if !c.has_password && state.secrets_ok {
-        c.has_password = matches!(secrets::get_password(&c.id), Ok(Some(_)));
+    if state.secrets_ok {
+        if !c.has_password {
+            c.has_password = matches!(secrets::get_password(&c.id), Ok(Some(_)));
+        }
+        c.has_ssh_password = matches!(secrets::get_password(&ssh_key(&c.id)), Ok(Some(_)));
     }
     c
 }
@@ -66,6 +82,15 @@ pub fn connection_save(state: State<'_, AppState>, input: ConnectionInput) -> Cm
             repo::set_fallback_password(&db, &cfg.id, Some(&pw))?;
         }
     }
+    if let Some(pw) = input.ssh_password {
+        if state.secrets_ok {
+            if pw.is_empty() {
+                let _ = secrets::delete_password(&ssh_key(&cfg.id));
+            } else {
+                secrets::set_password(&ssh_key(&cfg.id), &pw)?;
+            }
+        }
+    }
     let saved = {
         let db = state.lock_db()?;
         repo::get(&db, &cfg.id)?.map(|(c, _)| c).ok_or(AppError::Storage("not saved".into()))?
@@ -75,11 +100,10 @@ pub fn connection_save(state: State<'_, AppState>, input: ConnectionInput) -> Cm
 
 #[tauri::command]
 pub async fn connection_delete(state: State<'_, AppState>, id: String) -> CmdResult<()> {
-    if let Some(s) = state.sessions.write().await.remove(&id) {
-        s.close().await;
-    }
+    state.remove_session(&id).await;
     if state.secrets_ok {
         let _ = secrets::delete_password(&id);
+        let _ = secrets::delete_password(&ssh_key(&id));
     }
     let db = state.lock_db()?;
     repo::delete(&db, &id)?;
@@ -104,13 +128,21 @@ pub async fn connection_test(state: State<'_, AppState>, input: ConnectionInput)
         None if !cfg.id.is_empty() => resolve_password(&state, &cfg.id)?,
         None => None,
     };
-    let session = drivers::connect(&cfg, password.as_deref(), None).await?;
+    let ssh_secret = match input.ssh_password {
+        Some(p) => Some(p),
+        None if !cfg.id.is_empty() => resolve_ssh_secret(&state, &cfg.id),
+        None => None,
+    };
+    let (session, tunnel) = drivers::connect(&cfg, password.as_deref(), ssh_secret.as_deref(), None).await?;
     let info = match &session {
-        drivers::Session::Sql(d) => d.server_info().await?,
-        drivers::Session::Redis(r) => r.server_info().await?,
+        drivers::Session::Sql(d) => d.server_info().await,
+        drivers::Session::Redis(r) => r.server_info().await,
     };
     session.close().await;
-    Ok(info)
+    if let Some(t) = tunnel {
+        t.close().await;
+    }
+    Ok(info?)
 }
 
 #[tauri::command]

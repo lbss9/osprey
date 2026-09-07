@@ -6,6 +6,7 @@ pub mod mysql;
 pub mod postgres;
 pub mod redis;
 pub mod sql;
+pub mod ssh;
 pub mod value;
 
 use std::sync::Arc;
@@ -73,8 +74,42 @@ impl Session {
 }
 
 /// Open a session for `config`. `database` overrides the saved database
-/// (used when the user switches database in the sidebar).
+/// (used when the user switches database in the sidebar). When the
+/// connection has an SSH tunnel configured it is opened first and the driver
+/// talks to the local end; the tunnel is returned so the caller keeps it
+/// alive for as long as the session.
 pub async fn connect(
+    config: &ConnectionConfig,
+    password: Option<&str>,
+    ssh_secret: Option<&str>,
+    database: Option<&str>,
+) -> AppResult<(Session, Option<Arc<ssh::SshTunnel>>)> {
+    if let Some(ssh_cfg) = ssh::SshConfig::from_options(&config.options, ssh_secret) {
+        let tunnel = Arc::new(ssh::SshTunnel::open(&ssh_cfg, &config.host, config.port).await?);
+        let mut local = config.clone();
+        local.host = "127.0.0.1".into();
+        local.port = tunnel.local_port;
+        // TLS certificates are for the real host, not 127.0.0.1
+        if local.ssl_mode == SslModeVerifyAlias::VERIFY {
+            local.ssl_mode = crate::models::SslMode::Require;
+        }
+        match connect_direct(&local, password, database).await {
+            Ok(session) => return Ok((session, Some(tunnel))),
+            Err(e) => {
+                tunnel.close().await;
+                return Err(e);
+            }
+        }
+    }
+    Ok((connect_direct(config, password, database).await?, None))
+}
+
+struct SslModeVerifyAlias;
+impl SslModeVerifyAlias {
+    const VERIFY: crate::models::SslMode = crate::models::SslMode::Verify;
+}
+
+async fn connect_direct(
     config: &ConnectionConfig,
     password: Option<&str>,
     database: Option<&str>,

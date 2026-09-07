@@ -213,6 +213,7 @@ let connections: ConnectionConfig[] = [
     createdAt: now() - 86_400_000,
     lastUsedAt: now() - 3_600_000,
     hasPassword: true,
+    hasSshPassword: false,
   },
   {
     id: "c-redis",
@@ -231,6 +232,7 @@ let connections: ConnectionConfig[] = [
     createdAt: now() - 86_400_000,
     lastUsedAt: null,
     hasPassword: false,
+    hasSshPassword: false,
   },
 ];
 const sessions = new Map<string, string | undefined>();
@@ -416,13 +418,14 @@ const handlers: Record<string, Handler> = {
   connection_save: ({ input }) => {
     const i = input as ConnectionInput;
     const existing = connections.find((c) => c.id === i.id);
-    const { password, ...cfg } = i;
+    const { password, sshPassword, ...cfg } = i;
     const saved: ConnectionConfig = {
       ...cfg,
       id: cfg.id || `c-${Math.random().toString(36).slice(2, 8)}`,
       name: cfg.name.trim() || `${cfg.user}@${cfg.host}`,
       createdAt: existing?.createdAt ?? now(),
       hasPassword: password === undefined ? existing?.hasPassword ?? false : password !== "",
+      hasSshPassword: sshPassword === undefined ? existing?.hasSshPassword ?? false : sshPassword !== "",
     };
     if (existing) connections = connections.map((c) => (c.id === saved.id ? saved : c));
     else connections.push(saved);

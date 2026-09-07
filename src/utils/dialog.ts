@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { ask, message, save } from "@tauri-apps/plugin-dialog";
+import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
 
 export async function confirmDialog(text: string, title = "Osprey"): Promise<boolean> {
   if (isTauri()) {
@@ -31,4 +31,10 @@ export async function saveDialog(defaultName: string, ext: string, label: string
     filters: [{ name: label, extensions: [ext] }],
   });
   return path ?? null;
+}
+
+export async function openFileDialog(title?: string): Promise<string | null> {
+  if (!isTauri()) return window.prompt(title ?? "Path") ?? null;
+  const path = await open({ multiple: false, directory: false, title });
+  return typeof path === "string" ? path : null;
 }

@@ -33,11 +33,11 @@ test.describe("connections", () => {
     await expect(dialog.getByText("Connected to PostgreSQL 16.0 (mock)")).toBeVisible();
 
     // a wrong password surfaces the translated auth error
-    await dialog.locator('input[type="password"]').fill("wrong");
+    await dialog.locator('input[type="password"]').first().fill("wrong");
     await dialog.getByRole("button", { name: "Test" }).click();
     await expect(dialog.getByText(/Authentication failed/)).toBeVisible();
 
-    await dialog.locator('input[type="password"]').fill("ok");
+    await dialog.locator('input[type="password"]').first().fill("ok");
     await dialog.getByRole("button", { name: "Save & connect" }).click();
     await expect(dialog).toBeHidden();
     const sidebar = page.locator(".sidebar");

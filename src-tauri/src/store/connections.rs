@@ -43,6 +43,7 @@ fn from_row(r: &Row) -> rusqlite::Result<(ConnectionConfig, Option<String>)> {
             created_at: r.get("created_at")?,
             last_used_at: r.get("last_used_at")?,
             has_password: fallback.is_some(),
+            has_ssh_password: false,
         },
         fallback,
     ))

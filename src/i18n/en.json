@@ -137,7 +137,21 @@
     "applicationNameHint": "Shown in pg_stat_activity",
     "properties": "Connection properties",
     "general": "General",
-    "readOnlyServer": "Enforced by the server: every session starts read-only"
+    "readOnlyServer": "Enforced by the server: every session starts read-only",
+    "ssh": "SSH tunnel",
+    "sshEnable": "Connect through an SSH server",
+    "sshEnableHint": "The database port is reached from inside the SSH server; host and port above are as seen from there",
+    "sshHost": "SSH host",
+    "sshPort": "SSH port",
+    "sshUser": "SSH user",
+    "sshAuth": "Authentication",
+    "sshAuthPassword": "Password",
+    "sshAuthKey": "Private key file",
+    "sshPassword": "SSH password",
+    "sshKeyPath": "Key file",
+    "sshPassphrase": "Key passphrase (optional)",
+    "browse": "Browse…",
+    "sshPasswordKeep": "Leave blank to keep the saved one"
   },
   "tabs": {
     "query": "Query",

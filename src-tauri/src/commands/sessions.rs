@@ -1,6 +1,6 @@
 use tauri::State;
 
-use super::connections::resolve_password;
+use super::connections::{resolve_password, resolve_ssh_secret};
 use crate::drivers::{self, Session};
 use crate::error::{AppError, CmdResult};
 use crate::models::ServerInfo;
@@ -22,13 +22,16 @@ pub async fn session_open(
             .ok_or(AppError::Storage("connection not found".into()))?
     };
     let password = resolve_password(&state, &connection_id)?;
-    let session = drivers::connect(&cfg, password.as_deref(), database.as_deref()).await?;
+    let ssh_secret = resolve_ssh_secret(&state, &connection_id);
+    let (session, tunnel) = drivers::connect(&cfg, password.as_deref(), ssh_secret.as_deref(), database.as_deref()).await?;
     let info = match &session {
         Session::Sql(d) => d.server_info().await?,
         Session::Redis(r) => r.server_info().await?,
     };
-    if let Some(old) = state.sessions.write().await.insert(connection_id.clone(), session) {
-        old.close().await;
+    state.remove_session(&connection_id).await;
+    state.sessions.write().await.insert(connection_id.clone(), session);
+    if let Some(t) = tunnel {
+        state.tunnels.write().await.insert(connection_id.clone(), t);
     }
     {
         let db = state.lock_db()?;
@@ -39,9 +42,7 @@ pub async fn session_open(
 
 #[tauri::command]
 pub async fn session_close(state: State<'_, AppState>, connection_id: String) -> CmdResult<()> {
-    if let Some(s) = state.sessions.write().await.remove(&connection_id) {
-        s.close().await;
-    }
+    state.remove_session(&connection_id).await;
     Ok(())
 }
 

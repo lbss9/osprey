@@ -45,6 +45,7 @@ fn config(var: &str, driver: DriverKind) -> Option<(ConnectionConfig, String)> {
             created_at: 0,
             last_used_at: None,
             has_password: false,
+            has_ssh_password: false,
         },
         pass,
     ))
@@ -52,7 +53,7 @@ fn config(var: &str, driver: DriverKind) -> Option<(ConnectionConfig, String)> {
 
 async fn sql_session(var: &str, driver: DriverKind) -> Option<std::sync::Arc<dyn SqlDriver>> {
     let (cfg, pass) = config(var, driver)?;
-    let s = drivers::connect(&cfg, Some(&pass), None).await.expect("connect");
+    let (s, _) = drivers::connect(&cfg, Some(&pass), None, None).await.expect("connect");
     Some(s.sql().unwrap())
 }
 
@@ -364,7 +365,7 @@ async fn redis_end_to_end() {
         eprintln!("OSPREY_TEST_REDIS not set; skipping");
         return;
     };
-    let s = drivers::connect(&cfg, Some(&pass), None).await.expect("connect");
+    let (s, _) = drivers::connect(&cfg, Some(&pass), None, None).await.expect("connect");
     let Session::Redis(r) = s else { panic!() };
     let info = r.server_info().await.unwrap();
     println!("redis {} db={:?}", info.version, info.database);
@@ -471,16 +472,59 @@ async fn redis_end_to_end() {
 async fn wrong_password_is_reported_as_auth() {
     drivers::init_crypto();
     if let Some((cfg, _)) = config("OSPREY_TEST_PG", DriverKind::Postgres) {
-        let e = drivers::connect(&cfg, Some("definitely-wrong"), None).await.err().map(|e| e.to_string()).unwrap_or_default();
+        let e = drivers::connect(&cfg, Some("definitely-wrong"), None, None).await.err().map(|e| e.to_string()).unwrap_or_default();
         assert!(e.starts_with("errors.auth|"), "{e}");
     }
     if let Some((cfg, _)) = config("OSPREY_TEST_MYSQL", DriverKind::Mysql) {
-        let e = drivers::connect(&cfg, Some("definitely-wrong"), None).await.err().map(|e| e.to_string()).unwrap_or_default();
+        let e = drivers::connect(&cfg, Some("definitely-wrong"), None, None).await.err().map(|e| e.to_string()).unwrap_or_default();
         assert!(e.starts_with("errors.auth|"), "{e}");
     }
     if let Some((mut cfg, _)) = config("OSPREY_TEST_PG", DriverKind::Postgres) {
         cfg.port = 1; // nothing listens there
-        let e = drivers::connect(&cfg, Some("x"), None).await.err().map(|e| e.to_string()).unwrap_or_default();
+        let e = drivers::connect(&cfg, Some("x"), None, None).await.err().map(|e| e.to_string()).unwrap_or_default();
         assert!(e.starts_with("errors.connect|"), "{e}");
     }
+}
+
+/* ================================ SSH tunnel ================================ */
+
+/// OSPREY_TEST_SSH=user@host[:port], OSPREY_TEST_SSH_KEY=/path/to/key, and
+/// OSPREY_TEST_SSH_PG=host:port/db as seen from the SSH server (user/pass
+/// taken from OSPREY_TEST_PG).
+#[tokio::test]
+#[ignore]
+async fn ssh_tunnel_reaches_postgres() {
+    drivers::init_crypto();
+    let (Ok(ssh), Ok(key)) = (std::env::var("OSPREY_TEST_SSH"), std::env::var("OSPREY_TEST_SSH_KEY")) else {
+        eprintln!("OSPREY_TEST_SSH not set; skipping");
+        return;
+    };
+    let Some((mut cfg, pass)) = config("OSPREY_TEST_PG", DriverKind::Postgres) else { return };
+    let (user, hostport) = ssh.split_once('@').expect("user@host");
+    let (host, port) = hostport.split_once(':').unwrap_or((hostport, "22"));
+    if let Ok(target) = std::env::var("OSPREY_TEST_SSH_PG") {
+        let (hp, db) = target.split_once('/').unwrap_or((&target, "demo"));
+        let (h, p) = hp.split_once(':').unwrap_or((hp, "5432"));
+        cfg.host = h.into();
+        cfg.port = p.parse().unwrap();
+        cfg.database = db.into();
+    }
+    cfg.options = json!({ "ssh": { "enabled": true, "host": host, "port": port.parse::<u16>().unwrap(), "user": user, "auth": "key", "keyPath": key } });
+    let (session, tunnel) = drivers::connect(&cfg, Some(&pass), None, None).await.expect("connect through ssh");
+    let tunnel = tunnel.expect("a tunnel");
+    assert!(tunnel.local_port > 0);
+    let d = session.sql().unwrap();
+    let info = d.server_info().await.unwrap();
+    println!("via ssh: postgres {} on local port {}", info.version, tunnel.local_port);
+    assert!(info.version.starts_with(|c: char| c.is_ascii_digit()));
+    // several statements over the same tunnel, then a clean close
+    let sets = d.query("SELECT 1; SELECT 2", 10).await.unwrap();
+    assert_eq!(sets.len(), 2);
+    d.close().await;
+    tunnel.close().await;
+
+    // wrong key path → auth error, never a hang
+    cfg.options["ssh"]["keyPath"] = json!("C:/definitely/missing.key");
+    let e = drivers::connect(&cfg, Some(&pass), None, None).await.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(e.starts_with("errors.auth|"), "{e}");
 }

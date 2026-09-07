@@ -53,6 +53,7 @@ pub fn run() {
             app.manage(AppState {
                 db: Mutex::new(conn),
                 sessions: RwLock::new(HashMap::new()),
+                tunnels: RwLock::new(HashMap::new()),
                 secrets_ok,
             });
             Ok(())

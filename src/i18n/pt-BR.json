@@ -137,7 +137,21 @@
     "applicationNameHint": "Aparece em pg_stat_activity",
     "properties": "Propriedades da conexão",
     "general": "Geral",
-    "readOnlyServer": "Garantido pelo servidor: toda sessão nasce somente leitura"
+    "readOnlyServer": "Garantido pelo servidor: toda sessão nasce somente leitura",
+    "ssh": "Túnel SSH",
+    "sshEnable": "Conectar através de um servidor SSH",
+    "sshEnableHint": "A porta do banco é alcançada de dentro do servidor SSH; host e porta acima são vistos de lá",
+    "sshHost": "Host SSH",
+    "sshPort": "Porta SSH",
+    "sshUser": "Usuário SSH",
+    "sshAuth": "Autenticação",
+    "sshAuthPassword": "Senha",
+    "sshAuthKey": "Arquivo de chave privada",
+    "sshPassword": "Senha SSH",
+    "sshKeyPath": "Arquivo da chave",
+    "sshPassphrase": "Senha da chave (opcional)",
+    "browse": "Procurar…",
+    "sshPasswordKeep": "Deixe em branco para manter a salva"
   },
   "tabs": {
     "query": "Consulta",

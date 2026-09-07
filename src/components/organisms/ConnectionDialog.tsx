@@ -14,7 +14,8 @@ import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
 import { driverLabel } from "@/utils/format";
-import type { ConnectionConfig, DriverKind, SslMode } from "@/types";
+import { openFileDialog } from "@/utils/dialog";
+import type { ConnectionConfig, DriverKind, SshOptions, SslMode } from "@/types";
 
 const COLORS = ["#37b7e6", "#4cc088", "#e2ac36", "#ec6060", "#a97ef0", "#f0a978", "#8fb0c9", "#e879b9"];
 const DRIVERS: { id: DriverKind; color: string; hint: string }[] = [
@@ -40,8 +41,11 @@ function blank(driver: DriverKind = "postgres"): ConnectionConfig {
     position: 0,
     createdAt: 0,
     hasPassword: false,
+    hasSshPassword: false,
   };
 }
+
+const SSH_DEFAULT: SshOptions = { enabled: false, host: "", port: 22, user: "", auth: "key", keyPath: "" };
 
 /**
  * Create / edit ("Properties") a connection. Two tabs: General and Advanced.
@@ -58,8 +62,10 @@ export default function ConnectionDialog() {
   const [busy, setBusy] = useState<"test" | "save" | null>(null);
   const [test, setTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [secretsOk, setSecretsOk] = useState(true);
-  const [tab, setTab] = useState<"general" | "advanced">("general");
+  const [tab, setTab] = useState<"general" | "ssh" | "advanced">("general");
   const [showPw, setShowPw] = useState(false);
+  const [sshPassword, setSshPassword] = useState("");
+  const [touchedSsh, setTouchedSsh] = useState(false);
 
   useEffect(() => {
     if (!dlg.open) return;
@@ -76,6 +82,8 @@ export default function ConnectionDialog() {
     setBusy(null);
     setTab("general");
     setShowPw(false);
+    setSshPassword("");
+    setTouchedSsh(false);
     api.secretsAvailable().then(setSecretsOk).catch(() => {});
   }, [dlg]);
 
@@ -107,7 +115,13 @@ export default function ConnectionDialog() {
       sslMode: driver === "redis" ? "disable" : form.driver === "redis" ? "prefer" : form.sslMode,
     });
   };
-  const input = () => ({ ...form, password: touchedPw || dlg.clone ? password : undefined });
+  const input = () => ({
+    ...form,
+    password: touchedPw || dlg.clone ? password : undefined,
+    sshPassword: touchedSsh || dlg.clone ? sshPassword : undefined,
+  });
+  const ssh: SshOptions = { ...SSH_DEFAULT, ...((form.options?.ssh as Partial<SshOptions> | undefined) ?? {}) };
+  const setSsh = (patch: Partial<SshOptions>) => setOption("ssh", { ...ssh, ...patch });
 
   const doTest = async () => {
     setBusy("test");
@@ -156,6 +170,10 @@ export default function ConnectionDialog() {
           <div className="pill-tabs">
             <Tab active={tab === "general"} onClick={() => setTab("general")}>
               {t("connection.general")}
+            </Tab>
+            <Tab active={tab === "ssh"} onClick={() => setTab("ssh")}>
+              {t("connection.ssh")}
+              {ssh.enabled && <span className="tab-dot" />}
             </Tab>
             <Tab active={tab === "advanced"} onClick={() => setTab("advanced")}>
               {t("connection.advanced")}
@@ -230,6 +248,64 @@ export default function ConnectionDialog() {
                   </div>
                 )}
               </div>
+          </div>
+          <div className={`tab-pane ${tab === "ssh" ? "" : "hidden-pane"}`} aria-hidden={tab !== "ssh"}>
+            <div className="form-grid">
+              <div className="span2">
+                <ToggleRow label={t("connection.sshEnable")} desc={t("connection.sshEnableHint")} checked={ssh.enabled} onChange={(v) => setSsh({ enabled: v })} />
+              </div>
+              <Field label={t("connection.sshHost")}>
+                <Input mono value={ssh.host} disabled={!ssh.enabled} onChange={(e) => setSsh({ host: e.target.value })} placeholder="bastion.example.com" />
+              </Field>
+              <Field label={t("connection.sshPort")}>
+                <Input mono type="number" value={ssh.port} disabled={!ssh.enabled} onChange={(e) => setSsh({ port: Number(e.target.value) || 22 })} />
+              </Field>
+              <Field label={t("connection.sshUser")}>
+                <Input mono value={ssh.user} disabled={!ssh.enabled} onChange={(e) => setSsh({ user: e.target.value })} />
+              </Field>
+              <Field label={t("connection.sshAuth")}>
+                <Dropdown
+                  value={ssh.auth}
+                  disabled={!ssh.enabled}
+                  options={[
+                    { value: "key", label: t("connection.sshAuthKey") },
+                    { value: "password", label: t("connection.sshAuthPassword") },
+                  ]}
+                  onChange={(v) => setSsh({ auth: v as SshOptions["auth"] })}
+                />
+              </Field>
+              {ssh.auth === "key" && (
+                <Field label={t("connection.sshKeyPath")} span2>
+                  <div className="input-row">
+                    <Input mono value={ssh.keyPath ?? ""} disabled={!ssh.enabled} placeholder="~/.ssh/id_ed25519" onChange={(e) => setSsh({ keyPath: e.target.value })} />
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      disabled={!ssh.enabled}
+                      onClick={async () => {
+                        const p = await openFileDialog(t("connection.sshKeyPath"));
+                        if (p) setSsh({ keyPath: p });
+                      }}
+                    >
+                      {t("connection.browse")}
+                    </Button>
+                  </div>
+                </Field>
+              )}
+              <Field label={ssh.auth === "key" ? t("connection.sshPassphrase") : t("connection.sshPassword")} hint={form.hasSshPassword ? t("connection.sshPasswordKeep") : undefined} span2>
+                <Input
+                  mono
+                  type="password"
+                  value={sshPassword}
+                  disabled={!ssh.enabled}
+                  placeholder={form.hasSshPassword && !touchedSsh ? "••••••••" : ""}
+                  onChange={(e) => {
+                    setSshPassword(e.target.value);
+                    setTouchedSsh(true);
+                  }}
+                />
+              </Field>
+            </div>
           </div>
           <div className={`tab-pane ${tab === "advanced" ? "" : "hidden-pane"}`} aria-hidden={tab !== "advanced"}>
             <div className="form-grid">

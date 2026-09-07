@@ -23,11 +23,24 @@ export interface ConnectionConfig {
   createdAt: number;
   lastUsedAt?: number | null;
   hasPassword: boolean;
+  hasSshPassword: boolean;
+}
+
+/** `options.ssh` on a connection. */
+export interface SshOptions {
+  enabled: boolean;
+  host: string;
+  port: number;
+  user: string;
+  auth: "password" | "key";
+  keyPath?: string;
 }
 
 export interface ConnectionInput extends ConnectionConfig {
   /** undefined keeps the stored password; "" clears it */
   password?: string;
+  /** SSH password or key passphrase; same semantics */
+  sshPassword?: string;
 }
 
 export interface ServerInfo {
