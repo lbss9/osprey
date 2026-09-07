@@ -134,3 +134,7 @@ export const writeFileText = (path: string, content: string) =>
   invoke<void>("write_file_text", { path, content });
 export const dataDirPath = () => invoke<string>("data_dir_path");
 export const openDataDir = () => invoke<void>("open_data_dir");
+export const themesList = () => invoke<unknown[]>("themes_list");
+export const themesDirPath = () => invoke<string>("themes_dir_path");
+export const themeSave = (filename: string, content: string) => invoke<string>("theme_save", { filename, content });
+export const openThemesDir = () => invoke<void>("open_themes_dir");

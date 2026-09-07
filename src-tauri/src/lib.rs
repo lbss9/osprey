@@ -15,6 +15,7 @@ pub mod error;
 pub mod models;
 mod secrets;
 mod state;
+pub mod themes;
 pub mod store;
 
 use std::collections::HashMap;
@@ -57,10 +58,15 @@ pub fn run() {
                 pubsubs: RwLock::new(HashMap::new()),
                 secrets_ok,
             });
+            themes::start_watcher(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             app_info,
+            themes::themes_list,
+            themes::themes_dir_path,
+            themes::theme_save,
+            themes::open_themes_dir,
             connections_list,
             connection_save,
             connection_delete,

@@ -49,6 +49,7 @@ rustls-native-certs = "0.8"
 # ssh tunnels
 russh = { version = "0.63", default-features = false, features = ["ring", "rsa"] }
 csv = "1"
+notify = "8"
 
 # values
 chrono = { version = "0.4", features = ["serde"] }

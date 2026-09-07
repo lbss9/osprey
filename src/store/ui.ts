@@ -15,7 +15,8 @@ export interface DdlDialogState {
   columns?: ColumnInfo[];
 }
 
-export type ThemeChoice = "auto" | "dark" | "light";
+/** "auto", a built-in id ("dark" / "light") or the id of a JSON theme */
+export type ThemeChoice = string;
 
 interface UiState {
   theme: ThemeChoice;

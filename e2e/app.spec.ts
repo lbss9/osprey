@@ -489,6 +489,21 @@ test.describe("shell", () => {
     await expect(palette).toBeHidden();
   });
 
+  test("JSON themes from the themes folder apply and export", async ({ page }) => {
+    await openApp(page);
+    await page.keyboard.press("Control+,");
+    await page.locator(".dialog").getByRole("button", { name: "Appearance" }).click();
+    await page.locator(".theme-card[data-theme-id='nord']").click();
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim())).toBe("#88c0d0");
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.themeId)).toBe("nord");
+    await page.locator(".theme-card[data-theme-id='light']").click();
+    await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim())).toBe("#1a93c2");
+    await page.getByRole("button", { name: "Export current" }).click();
+    await expect(page.locator(".theme-card[data-theme-id='my-theme']")).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+
   test("tabs close with confirmation when dirty", async ({ page }) => {
     await openApp(page);
     await connect(page, "Demo Postgres");

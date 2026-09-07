@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import Badge from "@/components/atoms/Badge";
@@ -9,7 +9,9 @@ import SettingRow from "@/components/molecules/SettingRow";
 import ToggleRow from "@/components/molecules/ToggleRow";
 import ToolButton from "@/components/molecules/ToolButton";
 import i18n, { LANGUAGES } from "@/i18n";
-import { useUi, type ThemeChoice } from "@/store/ui";
+import { useThemes } from "@/store/themes";
+import { useUi } from "@/store/ui";
+import { AUTO_ID, previewColors, snapshotTheme, themeToJson } from "@/theme/themes";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { checkForUpdates, installUpdate, useUpdater } from "@/services/updater";
@@ -26,11 +28,14 @@ export default function SettingsDialog() {
   const [version, setVersion] = useState("");
   const [dataDir, setDataDir] = useState("");
   const [secretsOk, setSecretsOk] = useState(true);
+  const themes = useThemes((s) => s.all);
+  const [themesDir, setThemesDir] = useState("");
 
   useEffect(() => {
     if (!ui.settingsOpen) return;
     api.appInfo().then((i) => setVersion(i.version)).catch(() => setVersion("dev"));
     api.dataDirPath().then(setDataDir).catch(() => {});
+    api.themesDirPath().then(setThemesDir).catch(() => {});
     api.secretsAvailable().then(setSecretsOk).catch(() => {});
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && ui.closeSettings();
     window.addEventListener("keydown", onKey);
@@ -82,18 +87,50 @@ export default function SettingsDialog() {
             )}
             {tab === "appearance" && (
               <>
-                <SettingRow label={t("settings.theme")}>
+                <SettingRow label={t("settings.theme")} desc={t("settings.themeDesc")}>
                   <div className="theme-cards">
-                    {(["auto", "dark", "light"] as ThemeChoice[]).map((th) => (
-                      <Button key={th} variant="bare" className={`theme-card ${ui.theme === th ? "active" : ""}`} onClick={() => ui.set({ theme: th })}>
-                        <span className="prev" style={{ background: th === "light" ? "#f2f5f8" : th === "dark" ? "#0e1216" : "linear-gradient(90deg,#0e1216 50%,#f2f5f8 50%)" }}>
-                          <span style={{ background: th === "light" ? "#fff" : "#141a20", borderRight: "1px solid #3c4a58" }} />
-                          <span />
-                        </span>
-                        <span>{t(`settings.theme${th[0].toUpperCase()}${th.slice(1)}`)}</span>
-                      </Button>
-                    ))}
+                    <Button variant="bare" className={`theme-card ${ui.theme === AUTO_ID ? "active" : ""}`} onClick={() => ui.set({ theme: AUTO_ID })} data-theme-id="auto">
+                      <span className="prev" style={{ background: "linear-gradient(90deg,#0e1216 50%,#f2f5f8 50%)" }}>
+                        <span style={{ background: "#141a20", borderRight: "1px solid #3c4a58" }} />
+                        <span />
+                      </span>
+                      <span>{t("settings.themeAuto")}</span>
+                    </Button>
+                    {themes.map((th) => {
+                      const c = previewColors(th);
+                      return (
+                        <Button key={th.id} variant="bare" className={`theme-card ${ui.theme === th.id ? "active" : ""}`} onClick={() => ui.set({ theme: th.id })} data-theme-id={th.id} title={th.__file ?? th.name}>
+                          <span className="prev" style={{ background: c.bg, borderColor: c.panel }}>
+                            <span style={{ background: c.panel, borderRight: `1px solid ${c.accent}` }} />
+                            <span style={{ background: c.bg, ["--sw-accent" as string]: c.accent } as CSSProperties} />
+                          </span>
+                          <span>{th.id === "dark" ? t("settings.themeDark") : th.id === "light" ? t("settings.themeLight") : th.name}</span>
+                        </Button>
+                      );
+                    })}
                   </div>
+                </SettingRow>
+                <SettingRow label={t("settings.themesFolder")} desc={<span className="mono">{themesDir}</span>}>
+                  <Button variant="secondary" size="sm" onClick={() => void api.openThemesDir()}>
+                    <Icon name="folder" size={14} /> {t("settings.openFolder")}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      const current = themes.find((x) => x.id === ui.theme);
+                      const type = current?.type ?? (document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark");
+                      const snap = snapshotTheme("my-theme", "My theme", type);
+                      try {
+                        await api.themeSave("my-theme", themeToJson(snap));
+                        ws.toast(t("settings.themeExported"), "success");
+                      } catch (e) {
+                        ws.toast(String(e), "error");
+                      }
+                    }}
+                  >
+                    <Icon name="download" size={14} /> {t("settings.themeExport")}
+                  </Button>
                 </SettingRow>
                 <SettingRow label={t("settings.fontSize")}>
                   <Dropdown value={String(ui.fontSize)} options={num([11, 12, 13, 14, 15, 16], " px")} onChange={(v) => ui.set({ fontSize: Number(v) })} />

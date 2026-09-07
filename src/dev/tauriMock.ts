@@ -273,6 +273,31 @@ let connections: ConnectionConfig[] = [
 const sessions = new Map<string, string | undefined>();
 const history: HistoryEntry[] = [];
 const mockTimers: Record<string, number> = {};
+const mockThemes: Record<string, unknown>[] = [
+  {
+    __file: "nord.json",
+    id: "nord",
+    name: "Nord",
+    type: "dark",
+    author: "community",
+    colors: {
+      bg: "#2e3440",
+      panel: "#3b4252",
+      "panel-2": "#434c5e",
+      "panel-3": "#4c566a",
+      line: "#4c566a",
+      "line-2": "#5b6678",
+      text: "#eceff4",
+      "text-soft": "#d8dee9",
+      "text-faint": "#8f9bb3",
+      accent: "#88c0d0",
+      "accent-2": "#8fbcbb",
+      "accent-soft": "#3b4a56",
+      "on-accent": "#2e3440",
+      sel: "rgba(136,192,208,0.2)",
+    },
+  },
+];
 const savedQueries: SavedQuery[] = [{ id: "sq-0", connectionId: "c-pg", name: "Active people", sql: "SELECT * FROM people WHERE active", position: 0, updatedAt: now() - 60_000 }];
 
 function serverInfo(c: ConnectionConfig, database?: string): ServerInfo {
@@ -747,6 +772,19 @@ const handlers: Record<string, Handler> = {
   write_file_text: () => undefined,
   data_dir_path: () => "C:\\Users\\mock\\AppData\\Roaming\\com.lluan.osprey",
   open_data_dir: () => undefined,
+  themes_list: () => mockThemes,
+  themes_dir_path: () => "C:\\Users\\mock\\AppData\\Roaming\\com.lluan.osprey\\themes",
+  theme_save: ({ filename, content }) => {
+    const parsed = JSON.parse(content as string) as Record<string, unknown>;
+    const file = String(filename).endsWith(".json") ? String(filename) : `${filename}.json`;
+    const i = mockThemes.findIndex((t) => t.__file === file);
+    const entry = { ...parsed, __file: file };
+    if (i >= 0) mockThemes[i] = entry;
+    else mockThemes.push(entry);
+    window.dispatchEvent(new CustomEvent("themes-changed"));
+    return `C:\\mock\\themes\\${file}`;
+  },
+  open_themes_dir: () => undefined,
 };
 
 /** Install the mock bridge on `window`. */

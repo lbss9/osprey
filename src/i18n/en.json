@@ -372,7 +372,11 @@
     "website": "GitHub",
     "license": "MIT license",
     "showSystem": "Show system databases and schemas",
-    "showSystemHint": "pg_catalog, information_schema, templates, mysql, sys…"
+    "showSystemHint": "pg_catalog, information_schema, templates, mysql, sys…",
+    "themeDesc": "Drop a JSON file in the themes folder to add your own; changes apply instantly.",
+    "themesFolder": "Themes folder",
+    "themeExport": "Export current",
+    "themeExported": "Theme saved to the themes folder as my-theme.json"
   },
   "update": {
     "title": "Osprey {{version}} is ready",

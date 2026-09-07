@@ -443,6 +443,7 @@ kbd {
   font-size: 0.9em;
   color: var(--text-faint);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .setting-control {
   flex: none;
@@ -1951,6 +1952,7 @@ kbd {
 }
 .theme-cards {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .theme-card {
@@ -1976,6 +1978,19 @@ kbd {
   overflow: hidden;
   display: grid;
   grid-template-columns: 18px 1fr;
+}
+.theme-card .prev > span:last-child {
+  position: relative;
+}
+.theme-card .prev > span:last-child::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sw-accent, transparent);
 }
 .sql-preview {
   background: var(--bg);
