@@ -177,8 +177,19 @@ npm run tauri build    # produce installers under src-tauri/target/release/bundl
 npm run release -- 0.2.0   # bump versions, tag v0.2.0 and push (CI builds and publishes)
 ```
 
-Type-check the frontend with `npx tsc --noEmit`, run the Rust tests with
-`cargo test --manifest-path src-tauri/Cargo.toml`.
+### Tests
+
+| Layer | Command | What it covers |
+| --- | --- | --- |
+| Frontend types | `npx tsc --noEmit` | strict TypeScript over `src/` |
+| Rust unit | `cargo test --manifest-path src-tauri/Cargo.toml` | SQL generation, quoting, console parsing |
+| Drivers (live servers) | `OSPREY_TEST_PG=… OSPREY_TEST_MYSQL=… OSPREY_TEST_REDIS=… cargo test --manifest-path src-tauri/Cargo.toml --test drivers -- --ignored` | catalog, paging, edits in a transaction, multi-statement, cancel, Redis types |
+| UI (Playwright) | `npm run test:e2e` | dialogs, sidebar tree, grid editing and SQL preview, query editor, Redis views, settings |
+
+The UI suite runs in Chromium against the Vite dev server with an in-memory stand-in for the
+Rust backend (`src/dev/tauriMock.ts`, enabled by opening the app with `?mock=1`), so it needs
+neither the native window nor a database. `npm run test:e2e:ui` opens Playwright's inspector.
+CI runs all four layers on every push, with PostgreSQL, MySQL and Redis as service containers.
 
 Your data lives in the app data folder (`%APPDATA%\com.lluan.osprey` on Windows,
 `~/Library/Application Support/com.lluan.osprey` on macOS, `~/.local/share/com.lluan.osprey` on

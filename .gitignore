@@ -30,3 +30,7 @@ npm-debug.log*
 
 # local tooling
 .claude/
+
+# playwright
+test-results/
+playwright-report/

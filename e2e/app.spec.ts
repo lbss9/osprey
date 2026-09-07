@@ -1,0 +1,307 @@
+import { expect, test } from "@playwright/test";
+import { cell, connect, openApp, openTable } from "./helpers";
+
+test.describe("connections", () => {
+  test("welcome screen lists saved connections and creates a new one", async ({ page }) => {
+    await openApp(page);
+    await expect(page.locator(".sidebar")).toContainText("Demo Postgres");
+    await expect(page.locator(".sidebar")).toContainText("Demo Redis");
+
+    await page.locator(".sidebar-head").getByRole("button", { name: "New connection" }).click();
+    const dialog = page.locator(".dialog");
+    await expect(dialog.getByRole("heading", { name: "New connection" })).toBeVisible();
+
+    // Redis has no opportunistic TLS: "prefer" disappears and the default is off
+    await dialog.getByText("Redis", { exact: true }).click();
+    await expect(dialog.locator("select").first()).toHaveValue("disable");
+    await expect(dialog.locator("select").first().locator("option")).toHaveCount(3);
+    await dialog.getByText("PostgreSQL", { exact: true }).click();
+    await expect(dialog.locator("select").first()).toHaveValue("prefer");
+
+    await dialog.getByPlaceholder("e.g. Production, Local dev…").fill("My PG");
+    await dialog.getByRole("button", { name: "Test" }).click();
+    await expect(dialog.getByText("Connected to PostgreSQL 16.0 (mock)")).toBeVisible();
+
+    // a wrong password surfaces the translated auth error
+    await dialog.locator('input[type="password"]').fill("wrong");
+    await dialog.getByRole("button", { name: "Test" }).click();
+    await expect(dialog.getByText(/Authentication failed/)).toBeVisible();
+
+    await dialog.locator('input[type="password"]').fill("ok");
+    await dialog.getByRole("button", { name: "Save & connect" }).click();
+    await expect(dialog).toBeHidden();
+    const sidebar = page.locator(".sidebar");
+    await expect(sidebar.locator(".tree-row.conn", { hasText: "My PG" }).locator(".status.open")).toBeVisible();
+    await expect(sidebar.getByText("public", { exact: true })).toBeVisible();
+    await expect(sidebar.getByText("people", { exact: true })).toBeVisible();
+    await expect(page.locator(".toast.success")).toContainText("Connected to My PG");
+  });
+
+  test("connection errors are shown in the tree", async ({ page }) => {
+    await openApp(page);
+    await page.locator(".sidebar-head").getByRole("button", { name: "New connection" }).click();
+    const dialog = page.locator(".dialog");
+    await dialog.getByPlaceholder("e.g. Production, Local dev…").fill("Broken");
+    await dialog.locator("input.mono").first().fill("bad.host");
+    await dialog.getByRole("button", { name: "Save & connect" }).click();
+    await expect(page.locator(".sidebar")).toContainText("Could not connect: connection refused");
+    await expect(page.locator(".sidebar .tree-row.conn", { hasText: "Broken" }).locator(".status.error")).toBeVisible();
+  });
+});
+
+test.describe("table view", () => {
+  test("browses, sorts, filters and pages", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await openTable(page, "people");
+
+    // header carries the key icon and the type; first row is id 1
+    const head = page.locator(".grid-head .g-cell");
+    await expect(head.nth(0)).toContainText("id");
+    await expect(head.nth(0).locator(".pk")).toBeVisible();
+    await expect(cell(page, 0, "name")).toHaveText("Person 1");
+    await expect(cell(page, 0, "age").locator(".null")).toHaveText("NULL");
+    await expect(page.locator(".statusbar")).toContainText("1–200 of 240");
+
+    // sort by name desc → "Person 99" first (string order)
+    await head.nth(1).click();
+    await head.nth(1).click();
+    await expect(cell(page, 0, "name")).toHaveText("Person 99");
+
+    // next page
+    await page.locator(".statusbar").getByRole("button", { name: "Next page" }).click();
+    await expect(page.locator(".statusbar")).toContainText("201–240 of 240");
+    await page.locator(".statusbar").getByRole("button", { name: "Previous page" }).click();
+
+    // no-code filter: name contains "12"
+    await page.locator(".toolbar").getByRole("button", { name: "Filter" }).click();
+    const bar = page.locator(".filterbar");
+    await bar.getByRole("button", { name: "Filter" }).click();
+    await bar.locator("select.f-col").selectOption("name");
+    await bar.locator("select.f-op").selectOption("contains");
+    await bar.getByPlaceholder("Value").fill("12");
+    await bar.getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator(".statusbar")).toContainText("1–13 of 13");
+    await expect(page.locator(".g-row .g-cell:nth-child(3)").first()).toContainText("12");
+
+    // filter by value from the context menu (age NULL)
+    await bar.getByRole("button", { name: "Clear filters" }).click();
+    await bar.getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator(".statusbar")).toContainText("of 240");
+    await cell(page, 0, "age").click({ button: "right" });
+    await page.locator(".ctx").getByText("Filter by this value").click();
+    await expect(bar.locator("select.f-op")).toHaveValue("isnull");
+    await expect(page.locator(".statusbar")).toContainText("of 35");
+  });
+
+  test("edits cells, previews the SQL and applies in one transaction", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await openTable(page, "people");
+
+    await cell(page, 1, "name").dblclick();
+    await page.locator(".cell-editor").fill("Renamed person");
+    await page.keyboard.press("Enter");
+    await expect(cell(page, 1, "name")).toHaveClass(/modified/);
+    await expect(page.locator(".changes-bar")).toContainText("1 pending change");
+    await expect(page.locator(".tab.active")).toHaveClass(/dirty/);
+
+    // set NULL via the context menu, add a row, delete a row
+    await cell(page, 2, "email").click({ button: "right" });
+    await page.locator(".ctx").getByText("Set NULL").click();
+    await page.locator(".toolbar").getByRole("button", { name: "Add row" }).click();
+    await expect(page.locator(".changes-bar")).toContainText("3 pending changes");
+    await cell(page, 3, "id").click({ button: "right" });
+    await page.locator(".ctx").getByText("Delete row").click();
+    await expect(page.locator(".g-row").nth(3)).toHaveClass(/deleted/);
+    await expect(page.locator(".changes-bar")).toContainText("4 pending changes");
+
+    await page.locator(".changes-bar").getByRole("button", { name: "Preview SQL" }).click();
+    const preview = page.locator(".dialog .sql-preview");
+    await expect(preview).toContainText(`UPDATE "public"."people" SET "name" = 'Renamed person' WHERE "id" = 2`);
+    await expect(preview).toContainText(`UPDATE "public"."people" SET "email" = NULL WHERE "id" = 3`);
+    await expect(preview).toContainText(`INSERT INTO "public"."people" DEFAULT VALUES`);
+    await expect(preview).toContainText(`DELETE FROM "public"."people" WHERE "id" = 4`);
+    await page.locator(".dialog").getByRole("button", { name: "Close" }).click();
+
+    await page.locator(".changes-bar").getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator(".dialog")).toContainText("Including 1 DELETE");
+    await page.locator(".dialog").getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator(".toast.success")).toContainText("4 rows affected");
+    await expect(page.locator(".changes-bar")).toBeHidden();
+    await expect(cell(page, 1, "name")).toHaveText("Renamed person");
+    await expect(cell(page, 2, "email").locator(".null")).toBeVisible();
+    await expect(page.locator(".statusbar")).toContainText("of 240"); // 240 - 1 + 1
+    await expect(page.locator(".tab.active")).not.toHaveClass(/dirty/);
+  });
+
+  test("tables without a primary key are read-only", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await openTable(page, "orders");
+    await expect(page.locator(".toolbar").getByRole("button", { name: "Add row" })).toHaveCount(1);
+    await page.locator(".tab.active").locator(".t-close").click();
+    await openTable(page, "adults");
+    await expect(page.locator(".statusbar")).toContainText("no primary key");
+    await expect(page.locator(".toolbar").getByRole("button", { name: "Add row" })).toHaveCount(0);
+  });
+
+  test("structure tab shows columns, indexes and clickable foreign keys", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.locator(".sidebar").getByText("orders", { exact: true }).click({ button: "right" });
+    await page.locator(".ctx").getByText("Structure").click();
+    const view = page.locator(".structure");
+    await expect(view).toContainText("orders_person_idx");
+    await expect(view).toContainText("CASCADE");
+    await view.getByRole("button", { name: "public.people" }).click();
+    await expect(page.locator(".tab.active")).toContainText("people");
+    await expect(page.locator(".grid-head")).toContainText("email");
+  });
+});
+
+test.describe("query view", () => {
+  test("runs SQL with Ctrl+Enter, shows results, messages and errors", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.locator(".tabbar").getByRole("button", { name: /New query/ }).click();
+    await expect(page.locator(".tab.active")).toContainText("Query");
+
+    const editor = page.locator(".cm-content");
+    await editor.click();
+    await page.keyboard.type("SELECT * FROM people LIMIT 5; UPDATE people SET note = 'x'");
+    await page.keyboard.press("Control+Enter");
+    await expect(page.locator(".g-row").first()).toBeVisible();
+    await expect(cell(page, 0, "name")).toHaveText("Person 1");
+    await expect(page.locator(".result-tabs")).toContainText("Results");
+    await page.locator(".result-tabs").getByRole("button", { name: "Messages" }).click();
+    await expect(page.locator(".messages")).toContainText("3 rows affected");
+
+    // errors are translated and keep the server detail
+    await editor.click();
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("SELECT * FROM nope");
+    await page.locator(".toolbar").getByRole("button", { name: "Run" }).click();
+    await expect(page.locator(".messages .err")).toContainText('Query error: relation "nope" does not exist (position 15)');
+
+    // history panel lists both runs and loads one back into the editor
+    await page.locator(".toolbar").getByRole("button", { name: "History" }).click();
+    const hist = page.locator(".side-panel");
+    await expect(hist.locator(".hist-item")).toHaveCount(2);
+    await expect(hist.locator(".hist-item").first()).toContainText("Error");
+    await hist.locator(".hist-item").nth(1).click();
+    await expect(editor).toContainText("SELECT * FROM people LIMIT 5");
+  });
+});
+
+test.describe("redis", () => {
+  test("browses keys as a tree and edits values", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Redis");
+    await page.locator(".sidebar").getByText("Keys", { exact: true }).click();
+    const keys = page.locator(".redis-keys");
+    await expect(keys.locator(".key-row.folder", { hasText: "user" })).toContainText("2");
+    await keys.locator(".key-row.folder", { hasText: "user" }).click();
+    await keys.locator(".key-row.folder", { hasText: /^1\d*$/ }).first().click();
+    await keys.locator(".key-row", { hasText: "profile" }).first().click();
+
+    const panel = page.locator(".redis-value");
+    await expect(panel.locator(".keyname")).toHaveText("user:1:profile");
+    await expect(panel.locator(".badge").first()).toHaveText("hash");
+    await expect(panel.locator(".g-row")).toHaveCount(3);
+    await expect(panel.locator(".g-row").first()).toContainText("Ana");
+
+    // add a field, edit it inline, delete it
+    await panel.getByPlaceholder("Field").fill("email");
+    await panel.getByPlaceholder("Value").fill("ana@example.com");
+    await panel.getByRole("button", { name: "Add field" }).click();
+    await expect(panel.locator(".g-row")).toHaveCount(4);
+    await panel.locator(".g-row", { hasText: "email" }).locator(".g-cell").nth(1).dblclick();
+    await page.locator(".cell-editor").fill("ana@osprey.dev");
+    await page.keyboard.press("Enter");
+    await expect(panel.locator(".g-row", { hasText: "email" })).toContainText("ana@osprey.dev");
+    await panel.locator(".g-row", { hasText: "email" }).locator(".g-cell").first().click({ button: "right" });
+    await page.locator(".ctx").getByText("Delete row").click();
+    await expect(panel.locator(".g-row")).toHaveCount(3);
+
+    // string value with TTL and the flat list toggle
+    await keys.locator(".foot").getByRole("button").first().click(); // flat list
+    await keys.locator(".key-row", { hasText: "session:abc123" }).click();
+    await expect(panel.locator(".badge", { hasText: "expires in" })).toBeVisible();
+    await expect(panel.locator("textarea")).toHaveValue("token-xyz");
+    await panel.locator("textarea").fill("token-new");
+    await panel.getByRole("button", { name: "Save value" }).click();
+    await expect(panel.getByRole("button", { name: "Save value" })).toBeDisabled();
+
+    // pattern + type filter
+    await keys.getByPlaceholder(/Key pattern/).fill("user:*");
+    await keys.getByPlaceholder(/Key pattern/).press("Enter");
+    await expect(keys.locator(".foot")).toContainText("2 keys loaded");
+  });
+
+  test("console runs commands and shows JSON replies", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Redis");
+    await page.locator(".sidebar").getByText("Console", { exact: true }).click();
+    const input = page.getByPlaceholder(/Type a command/);
+    await input.fill("HGETALL user:2:profile");
+    await input.press("Enter");
+    await expect(page.locator(".console .log")).toContainText('"name": "Bob"');
+    await input.fill("FLY away");
+    await input.press("Enter");
+    await expect(page.locator(".console .log .reply.err")).toContainText("unknown command");
+    await input.press("ArrowUp");
+    await expect(input).toHaveValue("FLY away");
+  });
+
+  test("info dashboard shows server stats", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Redis");
+    await page.locator(".sidebar").getByText("Server info", { exact: true }).click();
+    await expect(page.locator(".stat-cards")).toContainText("7.4.0");
+    await expect(page.locator(".stat-cards")).toContainText("90.0%");
+  });
+});
+
+test.describe("shell", () => {
+  test("settings switch theme and language; shortcuts toggle the sidebar", async ({ page }) => {
+    await openApp(page);
+    await page.keyboard.press("Control+,");
+    const dialog = page.locator(".dialog");
+    await expect(dialog.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Appearance" }).click();
+    await dialog.getByRole("button", { name: "Light" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await dialog.getByRole("button", { name: "Dark" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+    await dialog.getByRole("button", { name: "General" }).click();
+    await dialog.locator("select").first().selectOption("pt-BR");
+    await expect(dialog.getByRole("heading", { name: "Configurações" })).toBeVisible();
+    await dialog.locator("select").first().selectOption("en");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+
+    await expect(page.locator(".sidebar")).toBeVisible();
+    await page.keyboard.press("Control+b");
+    await expect(page.locator(".sidebar")).toBeHidden();
+    await page.keyboard.press("Control+b");
+    await expect(page.locator(".sidebar")).toBeVisible();
+  });
+
+  test("tabs close with confirmation when dirty", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await openTable(page, "people");
+    await cell(page, 0, "name").dblclick();
+    await page.locator(".cell-editor").fill("x");
+    await page.keyboard.press("Enter");
+    page.once("dialog", (d) => d.dismiss());
+    await page.locator(".tab.active .t-close").click();
+    await expect(page.locator(".tab")).toHaveCount(1);
+    page.once("dialog", (d) => d.accept());
+    await page.locator(".tab.active .t-close").click();
+    await expect(page.locator(".tab")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Welcome to Osprey" })).toBeVisible();
+  });
+});

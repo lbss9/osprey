@@ -50,6 +50,17 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run build
+      - name: UI tests (Playwright on the mocked backend)
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
       - name: Unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Driver integration tests
