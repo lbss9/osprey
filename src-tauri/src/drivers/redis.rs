@@ -14,8 +14,39 @@ use crate::models::*;
 
 pub struct RedisSession {
     conn: Mutex<ConnectionManager>,
+    /// kept to open extra connections (pub/sub needs a dedicated one)
+    client: redis::Client,
     pub db: i64,
     host: String,
+}
+
+/// One `SLOWLOG GET` entry.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlowlogEntry {
+    pub id: i64,
+    pub at: i64,
+    pub duration_us: i64,
+    pub command: String,
+    pub client: String,
+    pub name: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryGroup {
+    pub prefix: String,
+    pub keys: u64,
+    pub bytes: u64,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryReport {
+    pub sampled: u64,
+    pub total_bytes: u64,
+    pub done: bool,
+    pub groups: Vec<MemoryGroup>,
 }
 
 fn text(v: &Value) -> String {
@@ -107,6 +138,7 @@ impl RedisSession {
         let _: String = cmd("PING").query_async(&mut conn).await?;
         Ok(RedisSession {
             conn: Mutex::new(manager),
+            client,
             db,
             host: cfg.host.clone(),
         })
@@ -381,6 +413,95 @@ impl RedisSession {
             }
         }
         Ok(())
+    }
+
+    /// `SLOWLOG GET n`, newest first.
+    pub async fn slowlog(&self, count: u32) -> AppResult<Vec<SlowlogEntry>> {
+        let mut c = self.conn.lock().await.clone();
+        let raw: Value = cmd("SLOWLOG").arg("GET").arg(count.clamp(1, 1024)).query_async(&mut c).await?;
+        let Value::Array(items) = raw else { return Ok(vec![]) };
+        Ok(items
+            .into_iter()
+            .filter_map(|e| match e {
+                Value::Array(f) => Some(SlowlogEntry {
+                    id: f.first().map(text).and_then(|s| s.parse().ok()).unwrap_or(0),
+                    at: f.get(1).map(text).and_then(|s| s.parse().ok()).unwrap_or(0),
+                    duration_us: f.get(2).map(text).and_then(|s| s.parse().ok()).unwrap_or(0),
+                    command: match f.get(3) {
+                        Some(Value::Array(args)) => args.iter().map(text).collect::<Vec<_>>().join(" "),
+                        Some(v) => text(v),
+                        None => String::new(),
+                    },
+                    client: f.get(4).map(text).unwrap_or_default(),
+                    name: f.get(5).map(text).unwrap_or_default(),
+                }),
+                _ => None,
+            })
+            .collect())
+    }
+
+    /// Sample up to `sample` keys matching `pattern`, ask MEMORY USAGE for
+    /// each and group by the first `:` segment.
+    pub async fn memory_report(&self, pattern: &str, sample: u64) -> AppResult<MemoryReport> {
+        let mut c = self.conn.lock().await.clone();
+        let mut cursor = 0u64;
+        let mut groups: std::collections::HashMap<String, MemoryGroup> = std::collections::HashMap::new();
+        let mut sampled = 0u64;
+        let mut total = 0u64;
+        let limit = sample.clamp(100, 200_000);
+        let done = loop {
+            let (next, keys): (u64, Vec<String>) = cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(if pattern.is_empty() { "*" } else { pattern })
+                .arg("COUNT")
+                .arg(500)
+                .query_async(&mut c)
+                .await?;
+            if !keys.is_empty() {
+                let mut pipe = redis::pipe();
+                for k in &keys {
+                    pipe.cmd("MEMORY").arg("USAGE").arg(k).arg("SAMPLES").arg(0);
+                }
+                let sizes: Vec<Value> = pipe.query_async(&mut c).await?;
+                for (k, v) in keys.iter().zip(sizes) {
+                    let bytes: u64 = text(&v).parse().unwrap_or(0);
+                    let prefix = k.split_once(':').map(|(p, _)| p.to_string()).unwrap_or_else(|| "(no prefix)".to_string());
+                    let g = groups.entry(prefix.clone()).or_insert(MemoryGroup { prefix, keys: 0, bytes: 0 });
+                    g.keys += 1;
+                    g.bytes += bytes;
+                    sampled += 1;
+                    total += bytes;
+                }
+            }
+            cursor = next;
+            if cursor == 0 {
+                break true;
+            }
+            if sampled >= limit {
+                break false;
+            }
+        };
+        let mut groups: Vec<MemoryGroup> = groups.into_values().collect();
+        groups.sort_by(|a, b| b.bytes.cmp(&a.bytes).then(a.prefix.cmp(&b.prefix)));
+        Ok(MemoryReport { sampled, total_bytes: total, done, groups })
+    }
+
+    /// Dedicated pub/sub connection; the caller drives the stream.
+    pub async fn pubsub(&self, channels: &[String], patterns: &[String]) -> AppResult<redis::aio::PubSub> {
+        let mut ps = self.client.get_async_pubsub().await?;
+        for ch in channels {
+            ps.subscribe(ch).await?;
+        }
+        for p in patterns {
+            ps.psubscribe(p).await?;
+        }
+        Ok(ps)
+    }
+
+    pub async fn publish(&self, channel: &str, message: &str) -> AppResult<i64> {
+        let mut c = self.conn.lock().await.clone();
+        Ok(cmd("PUBLISH").arg(channel).arg(message).query_async(&mut c).await?)
     }
 
     /// Run a raw command line (`HGETALL user:1`) and return the reply as JSON.

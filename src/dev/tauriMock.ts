@@ -272,6 +272,7 @@ let connections: ConnectionConfig[] = [
 ];
 const sessions = new Map<string, string | undefined>();
 const history: HistoryEntry[] = [];
+const mockTimers: Record<string, number> = {};
 const savedQueries: SavedQuery[] = [{ id: "sq-0", connectionId: "c-pg", name: "Active people", sql: "SELECT * FROM people WHERE active", position: 0, updatedAt: now() - 60_000 }];
 
 function serverInfo(c: ConnectionConfig, database?: string): ServerInfo {
@@ -659,6 +660,51 @@ const handlers: Record<string, Handler> = {
   redis_command: ({ connectionId, line }) => {
     session(connectionId as string);
     return { reply: redisCommand(String(line)), elapsedMs: 1 };
+  },
+  redis_slowlog: ({ connectionId }) => {
+    session(connectionId as string);
+    return [
+      { id: 2, at: Math.floor(now() / 1000) - 30, durationUs: 15200, command: "KEYS *", client: "127.0.0.1:5000", name: "" },
+      { id: 1, at: Math.floor(now() / 1000) - 300, durationUs: 3400, command: "HGETALL user:1:profile", client: "127.0.0.1:5001", name: "worker" },
+    ];
+  },
+  redis_memory: ({ connectionId, pattern }) => {
+    session(connectionId as string);
+    const re = glob((pattern as string) || "*");
+    const groups: Record<string, { prefix: string; keys: number; bytes: number }> = {};
+    for (const [k, v] of Object.entries(redisKeys)) {
+      if (!re.test(k)) continue;
+      const prefix = k.includes(":") ? k.split(":")[0] : "(no prefix)";
+      const bytes = 64 + JSON.stringify(v).length;
+      const g = (groups[prefix] ??= { prefix, keys: 0, bytes: 0 });
+      g.keys++;
+      g.bytes += bytes;
+    }
+    const list = Object.values(groups).sort((a, b) => b.bytes - a.bytes);
+    return { sampled: list.reduce((n, g) => n + g.keys, 0), totalBytes: list.reduce((n, g) => n + g.bytes, 0), done: true, groups: list };
+  },
+  redis_subscribe: ({ connectionId, channels, patterns }) => {
+    session(connectionId as string);
+    const subId = `sub-${Math.random().toString(36).slice(2, 8)}`;
+    const chans = channels as string[];
+    const pats = patterns as string[];
+    const timer = window.setInterval(() => {
+      const channel = chans[0] ?? (pats[0] ?? "events:*").replace(/[*?]/g, "1");
+      window.dispatchEvent(new CustomEvent("redis-pubsub", { detail: { subId, connectionId, channel, pattern: chans[0] ? null : pats[0], payload: JSON.stringify({ tick: Date.now() }), at: now() } }));
+    }, 400);
+    mockTimers[subId] = timer;
+    return subId;
+  },
+  redis_unsubscribe: ({ subId }) => {
+    window.clearInterval(mockTimers[subId as string]);
+    delete mockTimers[subId as string];
+  },
+  redis_publish: ({ connectionId, channel, message }) => {
+    session(connectionId as string);
+    for (const subId of Object.keys(mockTimers)) {
+      window.dispatchEvent(new CustomEvent("redis-pubsub", { detail: { subId, connectionId, channel, pattern: null, payload: message, at: now() } }));
+    }
+    return Object.keys(mockTimers).length;
   },
   redis_info: ({ connectionId }) => {
     session(connectionId as string);

@@ -16,6 +16,7 @@ import type {
   DdlOp,
   ExplainResult,
   HistoryEntry,
+  MemoryReport,
   RedisCommandResult,
   RedisMutation,
   RedisScanRequest,
@@ -25,6 +26,7 @@ import type {
   ResultSet,
   SavedQuery,
   ServerInfo,
+  SlowlogEntry,
   TableInfo,
   TablePageRequest,
   TableStructure,
@@ -104,6 +106,14 @@ export const redisCommand = (connectionId: string, line: string) =>
   invoke<RedisCommandResult>("redis_command", { connectionId, line });
 export const redisInfo = (connectionId: string) =>
   invoke<Record<string, Record<string, string>>>("redis_info", { connectionId });
+export const redisSlowlog = (connectionId: string, count = 128) => invoke<SlowlogEntry[]>("redis_slowlog", { connectionId, count });
+export const redisMemory = (connectionId: string, pattern = "*", sample = 5000) =>
+  invoke<MemoryReport>("redis_memory", { connectionId, pattern, sample });
+export const redisSubscribe = (connectionId: string, channels: string[], patterns: string[]) =>
+  invoke<string>("redis_subscribe", { connectionId, channels, patterns });
+export const redisUnsubscribe = (connectionId: string, subId: string) => invoke<void>("redis_unsubscribe", { connectionId, subId });
+export const redisPublish = (connectionId: string, channel: string, message: string) =>
+  invoke<number>("redis_publish", { connectionId, channel, message });
 
 /* ---------------------------------- files --------------------------------- */
 

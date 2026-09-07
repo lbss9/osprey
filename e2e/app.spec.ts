@@ -410,6 +410,27 @@ test.describe("redis", () => {
     await expect(input).toHaveValue("FLY away");
   });
 
+  test("tools: slow log, memory by prefix, pub/sub monitor", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Redis");
+    await page.locator(".sidebar").getByText("Tools", { exact: true }).click();
+    await expect(page.locator(".g-row").first()).toContainText("KEYS *");
+    await page.locator(".pill-tabs").getByRole("tab", { name: "Memory" }).click();
+    await expect(page.locator(".memory-row").first()).toContainText("user");
+    await expect(page.locator(".badge", { hasText: "keys sampled" })).toBeVisible();
+    await page.locator(".pill-tabs").getByRole("tab", { name: "Pub/Sub" }).click();
+    await page.getByPlaceholder(/channels or patterns/).fill("events:*");
+    await page.getByRole("button", { name: "Subscribe" }).click();
+    await expect(page.locator(".badge", { hasText: "listening" })).toBeVisible();
+    await expect(page.locator(".console .log .cmd").first()).toContainText("events:1");
+    await page.getByPlaceholder("channel", { exact: true }).fill("alerts");
+    await page.getByPlaceholder("message").fill("hello");
+    await page.getByRole("button", { name: "Publish" }).click();
+    await expect(page.locator(".console .log")).toContainText("hello");
+    await page.getByRole("button", { name: "Stop" }).click();
+    await expect(page.locator(".badge", { hasText: "listening" })).toHaveCount(0);
+  });
+
   test("info dashboard shows server stats", async ({ page }) => {
     await openApp(page);
     await connect(page, "Demo Redis");

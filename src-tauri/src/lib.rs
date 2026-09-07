@@ -54,6 +54,7 @@ pub fn run() {
                 db: Mutex::new(conn),
                 sessions: RwLock::new(HashMap::new()),
                 tunnels: RwLock::new(HashMap::new()),
+                pubsubs: RwLock::new(HashMap::new()),
                 secrets_ok,
             });
             Ok(())
@@ -93,6 +94,11 @@ pub fn run() {
             redis_mutate,
             redis_command,
             redis_info,
+            redis_slowlog,
+            redis_memory,
+            redis_subscribe,
+            redis_unsubscribe,
+            redis_publish,
             export_rows,
             csv_preview,
             csv_import,

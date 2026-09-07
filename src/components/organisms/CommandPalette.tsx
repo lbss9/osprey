@@ -74,7 +74,7 @@ export default function CommandPalette({
         label: tab.title,
         hint: `${t(`tabs.${tab.kind === "table" ? "query" : tab.kind}` as never, { defaultValue: tab.kind })} · ${conn?.name ?? ""}`,
         group: t("palette.tabs"),
-        icon: tab.kind === "table" ? "table" : tab.kind === "query" ? "fileCode" : tab.kind === "redis" ? "keyRound" : "list",
+        icon: tab.kind === "table" ? "table" : tab.kind === "query" ? "fileCode" : tab.kind === "redis" ? "keyRound" : tab.kind === "tools" ? "zap" : "list",
         run: () => ws.setActiveTab(tab.id),
       });
     }

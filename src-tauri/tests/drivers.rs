@@ -634,3 +634,48 @@ async fn sqlite_end_to_end() {
     let _ = std::fs::remove_dir_all(&dir);
     println!("sqlite OK");
 }
+
+/// Slow log, memory report and pub/sub against a real server.
+#[tokio::test]
+#[ignore]
+async fn redis_tools_end_to_end() {
+    use futures_util::StreamExt;
+    drivers::init_crypto();
+    let Some((cfg, pass)) = config("OSPREY_TEST_REDIS", DriverKind::Redis) else {
+        eprintln!("OSPREY_TEST_REDIS not set; skipping");
+        return;
+    };
+    let (s, _) = drivers::connect(&cfg, Some(&pass), None, None).await.expect("connect");
+    let Session::Redis(r) = s else { panic!() };
+
+    // slowlog: force one entry by lowering the threshold, then restore it
+    r.command("CONFIG SET slowlog-log-slower-than 0").await.unwrap();
+    r.command("SET osprey:tools 1").await.unwrap();
+    let log = r.slowlog(10).await.unwrap();
+    r.command("CONFIG SET slowlog-log-slower-than 10000").await.unwrap();
+    assert!(!log.is_empty(), "slowlog should have entries");
+    assert!(log.iter().any(|e| e.command.starts_with("SET osprey:tools")), "{log:?}");
+
+    // memory grouped by prefix
+    r.command("SET user:1:profile x").await.unwrap();
+    r.command("SET user:2:profile y").await.unwrap();
+    let rep = r.memory_report("*", 5000).await.unwrap();
+    assert!(rep.done && rep.sampled >= 3 && rep.total_bytes > 0, "{rep:?}");
+    assert!(rep.groups.iter().any(|g| g.prefix == "user" && g.keys >= 2), "{rep:?}");
+
+    // pub/sub round trip
+    let ps = r.pubsub(&["osprey:chan".to_string()], &["osprey:pat:*".to_string()]).await.unwrap();
+    let mut stream = ps.into_on_message();
+    let n = r.publish("osprey:chan", "hello").await.unwrap();
+    assert_eq!(n, 1);
+    r.publish("osprey:pat:1", "world").await.unwrap();
+    let mut got = vec![];
+    while got.len() < 2 {
+        let msg = tokio::time::timeout(Duration::from_secs(5), stream.next()).await.expect("message").unwrap();
+        got.push((msg.get_channel_name().to_string(), msg.get_payload::<String>().unwrap(), msg.get_pattern::<String>().ok()));
+    }
+    got.sort();
+    assert_eq!(got[0], ("osprey:chan".into(), "hello".into(), None));
+    assert_eq!(got[1], ("osprey:pat:1".into(), "world".into(), Some("osprey:pat:*".into())));
+    r.command("DEL osprey:tools user:1:profile user:2:profile").await.unwrap();
+}

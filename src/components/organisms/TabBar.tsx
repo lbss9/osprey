@@ -15,6 +15,7 @@ const ICON: Record<Tab["kind"], IconName> = {
   redis: "keyRound",
   console: "terminal",
   info: "info",
+  tools: "zap",
 };
 
 export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {

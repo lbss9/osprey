@@ -233,6 +233,31 @@ export type RedisMutation =
   | { kind: "rename"; key: string; newKey: string }
   | { kind: "delete"; keys: string[] };
 
+export interface SlowlogEntry {
+  id: number;
+  at: number;
+  durationUs: number;
+  command: string;
+  client: string;
+  name: string;
+}
+
+export interface MemoryReport {
+  sampled: number;
+  totalBytes: number;
+  done: boolean;
+  groups: { prefix: string; keys: number; bytes: number }[];
+}
+
+export interface PubSubMessage {
+  subId: string;
+  connectionId: string;
+  channel: string;
+  pattern?: string | null;
+  payload: string;
+  at: number;
+}
+
 export interface RedisCommandResult {
   reply: unknown;
   elapsedMs: number;
@@ -323,7 +348,7 @@ export interface AppInfo {
 
 /* ------------------------------ UI-only types ----------------------------- */
 
-export type TabKind = "table" | "query" | "structure" | "redis" | "console" | "info";
+export type TabKind = "table" | "query" | "structure" | "redis" | "console" | "info" | "tools";
 
 export interface Tab {
   id: string;

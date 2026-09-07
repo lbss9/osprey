@@ -126,8 +126,8 @@ function ConnectionNode({
 
   const openQuery = (sql?: string) =>
     ws.openTab({ kind: "query", connectionId: conn.id, title: t("tabs.query"), sql: sql ?? "" }, { reuse: false });
-  const openRedis = (kind: "redis" | "console" | "info") =>
-    ws.openTab({ kind, connectionId: conn.id, title: kind === "redis" ? t("tabs.keys") : kind === "console" ? t("tabs.console") : t("tabs.info") });
+  const openRedis = (kind: "redis" | "console" | "info" | "tools") =>
+    ws.openTab({ kind, connectionId: conn.id, title: kind === "redis" ? t("tabs.keys") : kind === "console" ? t("tabs.console") : kind === "tools" ? t("redisTools.title") : t("tabs.info") });
 
   const remove = async () => {
     if (!(await confirmDialog(t("sidebar.deleteConfirm", { name: conn.name })))) return;
@@ -154,6 +154,7 @@ function ConnectionNode({
           { label: t("ctx.openKeys"), icon: "keyRound", onSelect: () => openRedis("redis") },
           { label: t("ctx.openConsole"), icon: "terminal", onSelect: () => openRedis("console") },
           { label: t("ctx.openInfo"), icon: "info", onSelect: () => openRedis("info") },
+          { label: t("redisTools.title"), icon: "zap", onSelect: () => openRedis("tools") },
         );
       } else {
         items.push(
@@ -212,7 +213,7 @@ function ConnectionNode({
 
 /* ---------------------------------- redis --------------------------------- */
 
-function RedisNodes({ conn, session, onOpen }: { conn: ConnectionConfig; session: SessionState; onOpen: (kind: "redis" | "console" | "info") => void }) {
+function RedisNodes({ conn, session, onOpen }: { conn: ConnectionConfig; session: SessionState; onOpen: (kind: "redis" | "console" | "info" | "tools") => void }) {
   const { t } = useTranslation();
   const ws = useWorkspace();
   const dbs = session.databases ?? Array.from({ length: 16 }, (_, i) => String(i));
@@ -241,6 +242,10 @@ function RedisNodes({ conn, session, onOpen }: { conn: ConnectionConfig; session
       <div className="tree-row tree-indent-1" onClick={() => onOpen("info")}>
         <Icon name="info" size={14} style={{ color: "var(--text-faint)" }} />
         <span className="label">{t("sidebar.info")}</span>
+      </div>
+      <div className="tree-row tree-indent-1" onClick={() => onOpen("tools")}>
+        <Icon name="zap" size={14} style={{ color: "var(--text-faint)" }} />
+        <span className="label">{t("redisTools.title")}</span>
       </div>
     </div>
   );

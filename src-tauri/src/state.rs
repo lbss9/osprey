@@ -19,6 +19,8 @@ pub struct AppState {
     pub sessions: RwLock<HashMap<String, Session>>,
     /// SSH tunnels backing sessions, keyed the same way
     pub tunnels: RwLock<HashMap<String, Arc<SshTunnel>>>,
+    /// live pub/sub listeners keyed `<connection_id>:<sub_id>`
+    pub pubsubs: RwLock<HashMap<String, tokio::task::JoinHandle<()>>>,
     /// whether the OS credential store answered at startup
     pub secrets_ok: bool,
 }
@@ -37,6 +39,14 @@ impl AppState {
         }
         if let Some(t) = self.tunnels.write().await.remove(id) {
             t.close().await;
+        }
+        let prefix = format!("{id}:");
+        let mut subs = self.pubsubs.write().await;
+        let keys: Vec<String> = subs.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
+        for k in keys {
+            if let Some(h) = subs.remove(&k) {
+                h.abort();
+            }
         }
     }
 

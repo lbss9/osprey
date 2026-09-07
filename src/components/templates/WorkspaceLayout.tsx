@@ -4,6 +4,7 @@ import TabBar from "@/components/organisms/TabBar";
 import ConsoleView from "@/components/templates/ConsoleView";
 import InfoView from "@/components/templates/InfoView";
 import QueryView from "@/components/templates/QueryView";
+import RedisToolsView from "@/components/templates/RedisToolsView";
 import RedisView from "@/components/templates/RedisView";
 import StructureView from "@/components/templates/StructureView";
 import TableView from "@/components/templates/TableView";
@@ -26,6 +27,8 @@ function View({ tab }: { tab: Tab }) {
       return <ConsoleView tab={tab} />;
     case "info":
       return <InfoView tab={tab} />;
+    case "tools":
+      return <RedisToolsView tab={tab} />;
   }
 }
 

@@ -2957,3 +2957,42 @@ kbd {
   white-space: nowrap;
   padding-left: 4px;
 }
+
+/* ------------------------------- redis tools ------------------------------- */
+.memory-list {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+}
+.memory-row {
+  display: grid;
+  grid-template-columns: 220px 1fr 90px 90px;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  border-bottom: 1px solid var(--line);
+}
+.memory-row .prefix {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.memory-row .bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+.memory-row .bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.memory-row .num {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+.memory-row .faint {
+  color: var(--text-faint);
+}

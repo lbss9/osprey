@@ -503,5 +503,31 @@
     "mapped": "{{count}} de {{total}} colunas mapeadas",
     "run": "Importar",
     "done": "{{count}} linhas importadas em {{time}}"
+  },
+  "redisTools": {
+    "title": "Ferramentas",
+    "slowlog": "Log lento",
+    "memory": "Memória",
+    "pubsub": "Pub/Sub",
+    "when": "Quando",
+    "duration": "Duração (ms)",
+    "command": "Comando",
+    "client": "Cliente",
+    "slowlogHint": "Comandos acima de slowlog-log-slower-than, mais recentes primeiro (SLOWLOG GET)",
+    "slowlogEmpty": "Nada lento registrado",
+    "analyze": "Analisar",
+    "sampled": "{{count}} chaves amostradas",
+    "keys": "{{count}} chaves",
+    "memoryHint": "MEMORY USAGE agrupado pelo primeiro prefixo, até 5000 chaves",
+    "channelsPlaceholder": "canais ou padrões, ex.: events:* alerts",
+    "subscribe": "Assinar",
+    "unsubscribe": "Parar",
+    "listening": "ouvindo",
+    "waiting": "Aguardando mensagens…",
+    "pubsubHint": "Assine canais (nomes exatos) ou padrões (com * ? [ ]) e veja as mensagens chegando.",
+    "channel": "canal",
+    "message": "mensagem",
+    "publish": "Publicar",
+    "published": "Entregue a {{count}} assinantes"
   }
 }

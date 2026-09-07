@@ -78,6 +78,84 @@ pub async fn redis_command(
 }
 
 #[tauri::command]
+pub async fn redis_slowlog(state: State<'_, AppState>, connection_id: String, count: Option<u32>) -> CmdResult<Vec<crate::drivers::redis::SlowlogEntry>> {
+    let r = state.session(&connection_id).await?.redis()?;
+    Ok(r.slowlog(count.unwrap_or(128)).await?)
+}
+
+#[tauri::command]
+pub async fn redis_memory(state: State<'_, AppState>, connection_id: String, pattern: Option<String>, sample: Option<u64>) -> CmdResult<crate::drivers::redis::MemoryReport> {
+    let r = state.session(&connection_id).await?.redis()?;
+    Ok(r.memory_report(pattern.as_deref().unwrap_or("*"), sample.unwrap_or(5000)).await?)
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PubSubMessage {
+    pub sub_id: String,
+    pub connection_id: String,
+    pub channel: String,
+    pub pattern: Option<String>,
+    pub payload: String,
+    pub at: i64,
+}
+
+/// Subscribe on a dedicated connection; messages arrive as `redis-pubsub`
+/// events until `redis_unsubscribe` (or the session closes).
+#[tauri::command]
+pub async fn redis_subscribe(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    connection_id: String,
+    channels: Vec<String>,
+    patterns: Vec<String>,
+) -> CmdResult<String> {
+    use futures_util::StreamExt;
+    use tauri::Emitter;
+    if channels.is_empty() && patterns.is_empty() {
+        return Err(AppError::Unsupported("nothing to subscribe to".into()).into());
+    }
+    let r = state.session(&connection_id).await?.redis()?;
+    let pubsub = r.pubsub(&channels, &patterns).await?;
+    let sub_id = uuid::Uuid::new_v4().to_string();
+    let key = format!("{connection_id}:{sub_id}");
+    let (sid, cid) = (sub_id.clone(), connection_id.clone());
+    let task = tokio::spawn(async move {
+        let mut stream = pubsub.into_on_message();
+        while let Some(msg) = stream.next().await {
+            let payload: String = msg.get_payload().unwrap_or_default();
+            let ev = PubSubMessage {
+                sub_id: sid.clone(),
+                connection_id: cid.clone(),
+                channel: msg.get_channel_name().to_string(),
+                pattern: msg.get_pattern::<String>().ok(),
+                payload,
+                at: now_ms(),
+            };
+            if app.emit("redis-pubsub", ev).is_err() {
+                break;
+            }
+        }
+    });
+    state.pubsubs.write().await.insert(key, task);
+    Ok(sub_id)
+}
+
+#[tauri::command]
+pub async fn redis_unsubscribe(state: State<'_, AppState>, connection_id: String, sub_id: String) -> CmdResult<()> {
+    if let Some(h) = state.pubsubs.write().await.remove(&format!("{connection_id}:{sub_id}")) {
+        h.abort();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn redis_publish(state: State<'_, AppState>, connection_id: String, channel: String, message: String) -> CmdResult<i64> {
+    let r = state.session(&connection_id).await?.redis()?;
+    Ok(r.publish(&channel, &message).await?)
+}
+
+#[tauri::command]
 pub async fn redis_info(state: State<'_, AppState>, connection_id: String) -> CmdResult<serde_json::Value> {
     let r = state.session(&connection_id).await?.redis()?;
     Ok(r.info().await?)
