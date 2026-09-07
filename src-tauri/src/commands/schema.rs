@@ -2,7 +2,7 @@ use tauri::State;
 
 use crate::drivers::Session;
 use crate::error::CmdResult;
-use crate::models::{ColumnInfo, DdlOp, TableInfo, TableStructure};
+use crate::models::{ColumnInfo, DdlOp, TableColumns, TableInfo, TableStructure};
 use crate::store::connections as repo;
 use crate::error::AppError;
 use crate::state::AppState;

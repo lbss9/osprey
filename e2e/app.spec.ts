@@ -597,6 +597,17 @@ test.describe("shell", () => {
     await page.keyboard.press("Escape");
   });
 
+  test("query results stream in batches", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.keyboard.press("Control+t");
+    await page.locator(".cm-content").click();
+    await page.keyboard.type("SELECT * FROM people;");
+    await page.keyboard.press("Control+Enter");
+    await expect(page.locator(".result-tabs .n")).toHaveText("240");
+    await expect(page.locator(".g-row").first()).toContainText("Person 1");
+  });
+
   test("tabs close with confirmation when dirty", async ({ page }) => {
     await openApp(page);
     await connect(page, "Demo Postgres");

@@ -361,7 +361,9 @@ impl SqlDriver for PgDriver {
         })
     }
 
-    async fn query(&self, sql: &str, max_rows: usize) -> AppResult<Vec<ResultSet>> {
+    async fn query_with(&self, sql: &str, max_rows: usize, sink: Option<RowSink>) -> AppResult<Vec<ResultSet>> {
+        let mut out = sink.map(StreamOut::new);
+        let mut total = 0usize;
         // best-effort column types (fails for multi-statement text, params, etc.)
         let types: Option<Vec<String>> = match self.client.prepare(sql).await {
             Ok(st) => Some(st.columns().iter().map(|c| c.type_().name().to_string()).collect()),
@@ -398,9 +400,10 @@ impl SqlDriver for PgDriver {
                     kinds = columns.iter().map(|c| c.kind).collect();
                     rows = Vec::new();
                     truncated = false;
+                    total = 0;
                 }
                 SimpleQueryMessage::Row(r) => {
-                    if rows.len() >= max_rows {
+                    if total >= max_rows {
                         truncated = true;
                         continue;
                     }
@@ -408,25 +411,35 @@ impl SqlDriver for PgDriver {
                         .map(|i| pg_text_to_json(r.get(i), kinds.get(i).copied().unwrap_or(ColumnKind::Other)))
                         .collect();
                     rows.push(row);
+                    total += 1;
+                    if let Some(o) = out.as_mut() {
+                        o.emit(&columns, &mut rows, false);
+                    }
                 }
                 SimpleQueryMessage::CommandComplete(n) => {
                     let elapsed = if have_desc { set_started.elapsed() } else { started.elapsed() };
                     if have_desc {
-                        let count = rows.len();
+                        if let Some(o) = out.as_mut() {
+                            o.emit(&columns, &mut rows, true);
+                        }
                         sets.push(ResultSet {
                             columns: std::mem::take(&mut columns),
                             rows: std::mem::take(&mut rows),
-                            row_count: count,
+                            row_count: total,
                             affected: None,
                             truncated,
                             elapsed_ms: elapsed.as_millis() as u64,
                             statement: None,
+                            streamed: out.is_some(),
                         });
                     } else {
                         sets.push(ResultSet::command(n, elapsed.as_millis() as u64, None));
                     }
                     have_desc = false;
                     kinds.clear();
+                    if let Some(o) = out.as_mut() {
+                        o.next_set();
+                    }
                 }
                 _ => {}
             }

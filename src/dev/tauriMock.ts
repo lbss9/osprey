@@ -597,7 +597,7 @@ const handlers: Record<string, Handler> = {
     return stmts;
   },
 
-  query_run: ({ connectionId, sql, maxRows }) => {
+  query_run: async ({ connectionId, sql, maxRows, streamId }) => {
     const c = session(connectionId as string);
     const text = String(sql);
     const started = now();
@@ -617,7 +617,16 @@ const handlers: Record<string, Handler> = {
       return { columns: [], rows: [], rowCount: 0, affected: 3, truncated: false, elapsedMs: 4, statement: st };
     });
     finish(true, sets.reduce((n, s) => n + (s.affected ?? s.rowCount), 0));
-    return sets;
+    if (!streamId) return sets;
+    // emulate the backend: 100-row batches as events, then an empty reply
+    for (const [set, s] of sets.entries()) {
+      if (!s.columns.length) continue;
+      for (let i = 0; i < s.rows.length || i === 0; i += 100) {
+        window.dispatchEvent(new CustomEvent("query-rows", { detail: { streamId, connectionId, set, columns: i === 0 ? s.columns : null, rows: s.rows.slice(i, i + 100) } }));
+        await new Promise((r) => setTimeout(r, 15));
+      }
+    }
+    return sets.map((s) => (s.columns.length ? { ...s, rows: [], streamed: true } : s));
   },
   query_cancel: () => undefined,
   query_explain: ({ connectionId, sql, analyze }) => {

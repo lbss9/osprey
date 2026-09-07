@@ -22,10 +22,11 @@ const SqlEditor = lazy(() => import("@/components/organisms/SqlEditor"));
 const ValueDialog = lazy(() => import("@/components/molecules/ValueDialog"));
 import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
+import { onEvent } from "@/services/events";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
 import { cellText, formatDuration, formatNumber, modKey } from "@/utils/format";
-import type { ExplainResult, ResultSet, Tab } from "@/types";
+import type { ExplainResult, QueryRowsEvent, ResultSet, Tab } from "@/types";
 
 /** SQL editor on top, results below. Ctrl+Enter runs the selection or all. */
 export default function QueryView({ tab }: { tab: Tab }) {
@@ -79,16 +80,43 @@ export default function QueryView({ tab }: { tab: Tab }) {
     if (!text.trim()) return;
     setRunning(true);
     setError(null);
+    setExplain(null);
+    // Rows stream in through `query-rows` events while the statement runs, so
+    // a big result shows its first page immediately and can be cancelled midway.
+    const streamId = crypto.randomUUID();
+    const partial: ResultSet[] = [];
+    let raf = 0;
+    const paint = () => {
+      raf = 0;
+      setResults(partial.map((s) => ({ ...s, rows: s.rows.slice() })));
+      setActive((a) => (a === -1 ? partial.findIndex((s) => s.columns.length > 0) : a));
+    };
+    setActive(-1);
+    const off = onEvent<QueryRowsEvent>("query-rows", (ev) => {
+      if (ev.streamId !== streamId) return;
+      while (partial.length <= ev.set) partial.push({ columns: [], rows: [], rowCount: 0, affected: null, truncated: false, elapsedMs: 0, streamed: true });
+      const set = partial[ev.set];
+      if (ev.columns) set.columns = ev.columns;
+      for (const r of ev.rows) set.rows.push(r);
+      set.rowCount = set.rows.length;
+      if (!raf) raf = requestAnimationFrame(paint);
+    });
     try {
-      const sets = await api.queryRun(tab.connectionId, text, limit);
-      setExplain(null);
-      setResults(sets);
-      const firstGrid = sets.findIndex((s) => s.columns.length > 0);
-      setActive(firstGrid >= 0 ? firstGrid : sets.length);
+      const sets = await api.queryRun(tab.connectionId, text, limit, streamId);
+      if (raf) cancelAnimationFrame(raf);
+      const merged = sets.map((s, i) => (s.streamed ? { ...s, rows: partial[i]?.rows ?? [], columns: s.columns.length ? s.columns : partial[i]?.columns ?? [] } : s));
+      setResults(merged);
+      const firstGrid = merged.findIndex((s) => s.columns.length > 0);
+      setActive(firstGrid >= 0 ? firstGrid : merged.length);
     } catch (e) {
+      if (raf) cancelAnimationFrame(raf);
       setError(translateError(e));
-      setResults(null);
+      // keep what arrived before the error / cancel
+      const got = partial.filter((s) => s.rows.length > 0);
+      setResults(got.length ? got : null);
+      setActive(got.length ? 0 : 0);
     } finally {
+      off();
       setRunning(false);
       setHistoryVersion((v) => v + 1);
     }

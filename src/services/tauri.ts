@@ -75,8 +75,8 @@ export const ddlApply = (connectionId: string, op: DdlOp) => invoke<string[]>("d
 
 /* ---------------------------------- query --------------------------------- */
 
-export const queryRun = (connectionId: string, sql: string, maxRows?: number) =>
-  invoke<ResultSet[]>("query_run", { connectionId, sql, maxRows: maxRows ?? null });
+export const queryRun = (connectionId: string, sql: string, maxRows?: number, streamId?: string) =>
+  invoke<ResultSet[]>("query_run", { connectionId, sql, maxRows: maxRows ?? null, streamId: streamId ?? null });
 export const queryCancel = (connectionId: string) => invoke<void>("query_cancel", { connectionId });
 export const queryExplain = (connectionId: string, sql: string, analyze = false) =>
   invoke<ExplainResult>("query_explain", { connectionId, sql, analyze });

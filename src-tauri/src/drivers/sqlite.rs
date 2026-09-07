@@ -288,9 +288,10 @@ impl SqlDriver for SqliteDriver {
         .await
     }
 
-    async fn query(&self, sql: &str, max_rows: usize) -> AppResult<Vec<ResultSet>> {
+    async fn query_with(&self, sql: &str, max_rows: usize, sink: Option<RowSink>) -> AppResult<Vec<ResultSet>> {
         let statements = split_statements(sql);
         self.with_conn(move |c| {
+            let mut out = sink.map(StreamOut::new);
             let mut sets = Vec::new();
             for st in statements {
                 let started = Instant::now();
@@ -298,6 +299,9 @@ impl SqlDriver for SqliteDriver {
                 let n = stmt.column_count();
                 if n == 0 {
                     let affected = stmt.execute([])?;
+                    if let Some(o) = out.as_mut() {
+                        o.next_set();
+                    }
                     sets.push(ResultSet::command(affected as u64, started.elapsed().as_millis() as u64, Some(st)));
                     continue;
                 }
@@ -311,9 +315,10 @@ impl SqlDriver for SqliteDriver {
                     .collect();
                 let mut rows: Vec<Vec<serde_json::Value>> = Vec::new();
                 let mut truncated = false;
+                let mut total = 0usize;
                 let mut q = stmt.query([])?;
                 while let Some(r) = q.next()? {
-                    if rows.len() >= max_rows {
+                    if total >= max_rows {
                         truncated = true;
                         break;
                     }
@@ -333,9 +338,16 @@ impl SqlDriver for SqliteDriver {
                         })
                         .collect();
                     rows.push(row);
+                    total += 1;
+                    if let Some(o) = out.as_mut() {
+                        o.emit(&columns, &mut rows, false);
+                    }
                 }
-                let count = rows.len();
-                sets.push(ResultSet { columns, rows, row_count: count, affected: None, truncated, elapsed_ms: started.elapsed().as_millis() as u64, statement: Some(st) });
+                if let Some(o) = out.as_mut() {
+                    o.emit(&columns, &mut rows, true);
+                    o.next_set();
+                }
+                sets.push(ResultSet { columns, rows, row_count: total, affected: None, truncated, elapsed_ms: started.elapsed().as_millis() as u64, statement: Some(st), streamed: out.is_some() });
             }
             if sets.is_empty() {
                 sets.push(ResultSet::command(0, 0, None));

@@ -118,6 +118,16 @@ export interface ResultSet {
   truncated: boolean;
   elapsedMs: number;
   statement?: string | null;
+  /** rows arrived through `query-rows` events; `rows` is empty in the reply */
+  streamed?: boolean;
+}
+
+export interface QueryRowsEvent {
+  streamId: string;
+  connectionId: string;
+  set: number;
+  columns?: ResultColumn[] | null;
+  rows: Cell[][];
 }
 
 export type FilterOp =

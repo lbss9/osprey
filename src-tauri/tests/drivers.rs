@@ -684,3 +684,92 @@ async fn redis_tools_end_to_end() {
     assert_eq!(got[1], ("osprey:pat:1".into(), "world".into(), Some("osprey:pat:*".into())));
     r.command("DEL osprey:tools user:1:profile user:2:profile").await.unwrap();
 }
+
+fn collecting_sink() -> (RowSink, std::sync::Arc<std::sync::Mutex<Vec<RowBatch>>>) {
+    let got = std::sync::Arc::new(std::sync::Mutex::new(Vec::<RowBatch>::new()));
+    let g = got.clone();
+    let sink: RowSink = std::sync::Arc::new(move |b: RowBatch| g.lock().unwrap().push(b));
+    (sink, got)
+}
+
+/// Streaming: rows go to the sink in 500-row batches, the reply carries none.
+#[tokio::test]
+async fn sqlite_streams_rows_in_batches() {
+    let dir = std::env::temp_dir().join(format!("osprey-stream-{}.db", std::process::id()));
+    let _ = std::fs::remove_file(&dir);
+    let cfg = ConnectionConfig {
+        id: "test-sqlite-stream".into(),
+        name: "sqlite".into(),
+        driver: DriverKind::Sqlite,
+        host: String::new(),
+        port: 0,
+        user: String::new(),
+        database: dir.to_string_lossy().into_owned(),
+        ssl_mode: SslMode::Disable,
+        color: None,
+        group: None,
+        read_only: false,
+        options: json!({ "create": true }),
+        position: 0,
+        created_at: 0,
+        last_used_at: None,
+        has_password: false,
+        has_ssh_password: false,
+    };
+    let (session, _) = drivers::connect(&cfg, None, None, None).await.expect("connect");
+    let d = session.sql().unwrap();
+    let (sink, got) = collecting_sink();
+    let sets = d
+        .query_with("WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 1234) SELECT x, 'v' || x AS v FROM n; SELECT 1 AS one", 5000, Some(sink))
+        .await
+        .unwrap();
+    let batches = got.lock().unwrap();
+    assert_eq!(sets.len(), 2);
+    assert!(sets[0].streamed && sets[0].rows.is_empty() && sets[0].row_count == 1234, "{:?}", sets[0]);
+    let first: Vec<&RowBatch> = batches.iter().filter(|b| b.set == 0).collect();
+    assert_eq!(first.len(), 3, "500 + 500 + 234");
+    assert!(first[0].columns.is_some() && first[1].columns.is_none());
+    assert_eq!(first.iter().map(|b| b.rows.len()).sum::<usize>(), 1234);
+    assert_eq!(first[0].columns.as_ref().unwrap()[1].name, "v");
+    let second: Vec<&RowBatch> = batches.iter().filter(|b| b.set == 1).collect();
+    assert_eq!(second.len(), 1);
+    assert_eq!(second[0].rows[0][0], json!(1));
+    // without a sink nothing changes
+    let plain = d.query("SELECT 2 AS two", 10).await.unwrap();
+    assert!(!plain[0].streamed && plain[0].rows.len() == 1);
+    let _ = std::fs::remove_file(&dir);
+}
+
+#[tokio::test]
+#[ignore]
+async fn postgres_streams_rows_in_batches() {
+    let Some(d) = sql_session("OSPREY_TEST_PG", DriverKind::Postgres).await else { return };
+    let (sink, got) = collecting_sink();
+    let sets = d.query_with("SELECT g, g * 2 AS d FROM generate_series(1, 2300) g", 5000, Some(sink)).await.unwrap();
+    let batches = got.lock().unwrap();
+    assert!(sets[0].streamed && sets[0].rows.is_empty() && sets[0].row_count == 2300);
+    assert_eq!(batches.len(), 5);
+    assert_eq!(batches.iter().map(|b| b.rows.len()).sum::<usize>(), 2300);
+    assert!(batches[0].columns.as_ref().unwrap()[0].kind == ColumnKind::Number);
+    // max_rows still applies while streaming
+    let (sink, got) = collecting_sink();
+    let sets = d.query_with("SELECT g FROM generate_series(1, 2300) g", 700, Some(sink)).await.unwrap();
+    assert!(sets[0].truncated && sets[0].row_count == 700);
+    assert_eq!(got.lock().unwrap().iter().map(|b| b.rows.len()).sum::<usize>(), 700);
+}
+
+#[tokio::test]
+#[ignore]
+async fn mysql_streams_rows_in_batches() {
+    let Some(d) = sql_session("OSPREY_TEST_MYSQL", DriverKind::Mysql).await else { return };
+    let (sink, got) = collecting_sink();
+    let sets = d
+        .query_with("WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 900) SELECT x FROM n; SELECT 7 AS seven", 5000, Some(sink))
+        .await
+        .unwrap();
+    let batches = got.lock().unwrap();
+    assert_eq!(sets.len(), 2);
+    assert!(sets[0].streamed && sets[0].row_count == 900);
+    assert_eq!(batches.iter().filter(|b| b.set == 0).count(), 2);
+    assert_eq!(batches.iter().filter(|b| b.set == 1).count(), 1);
+}

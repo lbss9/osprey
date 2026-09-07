@@ -325,7 +325,8 @@ impl SqlDriver for MysqlDriver {
         })
     }
 
-    async fn query(&self, sql: &str, max_rows: usize) -> AppResult<Vec<ResultSet>> {
+    async fn query_with(&self, sql: &str, max_rows: usize, sink: Option<RowSink>) -> AppResult<Vec<ResultSet>> {
+        let mut out = sink.map(StreamOut::new);
         let mut conn = self.pool.get_conn().await?;
         *self.running.lock().await = Some(conn.id());
         let started = Instant::now();
@@ -357,8 +358,9 @@ impl SqlDriver for MysqlDriver {
                 }
                 let mut rows: Vec<Vec<serde_json::Value>> = Vec::new();
                 let mut truncated = false;
+                let mut total = 0usize;
                 while let Some(row) = result.next().await? {
-                    if rows.len() >= max_rows {
+                    if total >= max_rows {
                         truncated = true;
                         continue;
                     }
@@ -372,20 +374,33 @@ impl SqlDriver for MysqlDriver {
                             })
                             .collect(),
                     );
+                    total += 1;
+                    if let Some(o) = out.as_mut() {
+                        if !columns.is_empty() {
+                            o.emit(&columns, &mut rows, false);
+                        }
+                    }
                 }
                 let elapsed = set_started.elapsed().as_millis() as u64;
                 if columns.is_empty() {
+                    if let Some(o) = out.as_mut() {
+                        o.next_set();
+                    }
                     sets.push(ResultSet::command(result.affected_rows(), elapsed, None));
                 } else {
-                    let count = rows.len();
+                    if let Some(o) = out.as_mut() {
+                        o.emit(&columns, &mut rows, true);
+                        o.next_set();
+                    }
                     sets.push(ResultSet {
                         columns,
                         rows,
-                        row_count: count,
+                        row_count: total,
                         affected: None,
                         truncated,
                         elapsed_ms: elapsed,
                         statement: None,
+                        streamed: out.is_some(),
                     });
                 }
                 if result.is_empty() {

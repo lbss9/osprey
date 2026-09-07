@@ -164,8 +164,6 @@ pub struct ForeignKeyInfo {
     pub on_delete: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 /// Every column of every table in a schema (autocompletion, ER diagram).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -174,7 +172,7 @@ pub struct TableColumns {
     pub columns: Vec<ColumnInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TableStructure {
     pub columns: Vec<ColumnInfo>,
@@ -218,6 +216,53 @@ pub struct ResultSet {
     pub truncated: bool,
     pub elapsed_ms: u64,
     pub statement: Option<String>,
+    /// rows were delivered through `query-rows` events; `rows` is empty here
+    #[serde(default)]
+    pub streamed: bool,
+}
+
+/// One slice of a streamed result set. `columns` travels with the first batch.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RowBatch {
+    pub set: usize,
+    pub columns: Option<Vec<ResultColumn>>,
+    pub rows: Vec<Vec<Value>>,
+}
+
+/// Where drivers push batches while a query is still running.
+pub type RowSink = std::sync::Arc<dyn Fn(RowBatch) + Send + Sync>;
+
+/// Batches rows for a sink: flushes every `STREAM_BATCH` rows and at the end
+/// of each set, sending the columns exactly once per set.
+pub struct StreamOut {
+    sink: RowSink,
+    pub set: usize,
+    sent: bool,
+}
+
+pub const STREAM_BATCH: usize = 500;
+
+impl StreamOut {
+    pub fn new(sink: RowSink) -> Self {
+        StreamOut { sink, set: 0, sent: false }
+    }
+    /// Push what is buffered when it is big enough (or `force`d at set end).
+    pub fn emit(&mut self, columns: &[ResultColumn], rows: &mut Vec<Vec<Value>>, force: bool) {
+        if rows.len() < STREAM_BATCH && !force {
+            return;
+        }
+        if rows.is_empty() && self.sent {
+            return;
+        }
+        let cols = if self.sent { None } else { Some(columns.to_vec()) };
+        self.sent = true;
+        (self.sink)(RowBatch { set: self.set, columns: cols, rows: std::mem::take(rows) });
+    }
+    pub fn next_set(&mut self) {
+        self.set += 1;
+        self.sent = false;
+    }
 }
 
 impl ResultSet {
@@ -229,8 +274,7 @@ impl ResultSet {
             affected: Some(affected),
             truncated: false,
             elapsed_ms,
-            statement,
-        }
+            statement, streamed: false }
     }
 }
 

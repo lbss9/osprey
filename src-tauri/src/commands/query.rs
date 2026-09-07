@@ -7,17 +7,42 @@ use crate::state::AppState;
 use crate::store::{history as repo, now_ms};
 
 /// Run user SQL on a session and record it in the history.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryRowsEvent {
+    pub stream_id: String,
+    pub connection_id: String,
+    pub set: usize,
+    pub columns: Option<Vec<crate::models::ResultColumn>>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+}
+
+/// Run user SQL on a session and record it in the history. With `stream_id`
+/// the rows are pushed as `query-rows` events while the query runs and the
+/// returned sets come back empty (`streamed = true`).
 #[tauri::command]
 pub async fn query_run(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     connection_id: String,
     sql: String,
     max_rows: Option<usize>,
+    stream_id: Option<String>,
 ) -> CmdResult<Vec<ResultSet>> {
+    use tauri::Emitter;
     let s = state.session(&connection_id).await?.sql()?;
     let max = max_rows.unwrap_or(1000).clamp(1, HARD_MAX_ROWS);
     let started = std::time::Instant::now();
-    let outcome = s.query(&sql, max).await;
+    let sink: Option<crate::models::RowSink> = stream_id.map(|sid| {
+        let cid = connection_id.clone();
+        std::sync::Arc::new(move |b: crate::models::RowBatch| {
+            let _ = app.emit(
+                "query-rows",
+                QueryRowsEvent { stream_id: sid.clone(), connection_id: cid.clone(), set: b.set, columns: b.columns, rows: b.rows },
+            );
+        }) as crate::models::RowSink
+    });
+    let outcome = s.query_with(&sql, max, sink).await;
     let duration_ms = started.elapsed().as_millis() as u64;
     let entry = HistoryEntry {
         id: uuid::Uuid::new_v4().to_string(),

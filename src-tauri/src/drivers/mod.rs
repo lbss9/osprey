@@ -16,7 +16,7 @@ use async_trait::async_trait;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    ColumnInfo, ConnectionConfig, DriverKind, ResultSet, ServerInfo, TableInfo, TableStructure,
+    ColumnInfo, ConnectionConfig, DriverKind, ResultSet, RowSink, ServerInfo, TableColumns, TableInfo, TableStructure,
 };
 
 /// Upper bound on rows a single result set carries to the UI. The table
@@ -39,7 +39,7 @@ pub trait SqlDriver: Send + Sync {
     /// with a single query; the default walks `tables()` + `columns()`.
     async fn schema_columns(&self, schema: &str) -> AppResult<Vec<TableColumns>> {
         let mut out = Vec::new();
-        for t in self.tables(schema).await? {
+        for t in self.list_tables(schema).await? {
             let columns = self.columns(schema, &t.name).await?;
             out.push(TableColumns { table: t.name, columns });
         }
@@ -48,7 +48,12 @@ pub trait SqlDriver: Send + Sync {
     async fn structure(&self, schema: &str, table: &str) -> AppResult<TableStructure>;
     /// Run arbitrary SQL (possibly several statements) and return one result
     /// set per statement. Rows beyond `max_rows` are dropped and flagged.
-    async fn query(&self, sql: &str, max_rows: usize) -> AppResult<Vec<ResultSet>>;
+    async fn query(&self, sql: &str, max_rows: usize) -> AppResult<Vec<ResultSet>> {
+        self.query_with(sql, max_rows, None).await
+    }
+    /// Same as `query`, but with a sink the driver feeds while rows arrive.
+    /// When a sink is given the returned sets carry `streamed = true` and no rows.
+    async fn query_with(&self, sql: &str, max_rows: usize, sink: Option<RowSink>) -> AppResult<Vec<ResultSet>>;
     /// Run statements inside one transaction; returns total affected rows.
     async fn execute_transaction(&self, statements: &[String]) -> AppResult<u64>;
     /// Ask the server to abort the statement currently running on this session.
