@@ -1084,6 +1084,7 @@ kbd {
 }
 .g-row {
   position: absolute;
+  top: 0;
   left: 0;
   display: flex;
   height: 28px;
