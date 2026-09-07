@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import Toasts from "@/components/molecules/Toasts";
 import ConnectionDialog from "@/components/organisms/ConnectionDialog";
 import SettingsDialog from "@/components/organisms/SettingsDialog";
+import CommandPalette, { type PaletteItem } from "@/components/organisms/CommandPalette";
 import TitleBar from "@/components/organisms/TitleBar";
 import WorkspaceLayout from "@/components/templates/WorkspaceLayout";
 import { useTheme } from "@/hooks/useTheme";
@@ -58,7 +59,10 @@ export default function App() {
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
-      if (k === "n" && !e.shiftKey) {
+      if (k === "k" || (k === "p" && !e.shiftKey)) {
+        e.preventDefault();
+        ui.set({ paletteOpen: !ui.paletteOpen });
+      } else if (k === "n" && !e.shiftKey) {
         e.preventDefault();
         ui.openConnectionDialog(null);
       } else if (k === "t") {
@@ -82,6 +86,9 @@ export default function App() {
       } else if (k === "s" && !e.shiftKey) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent("osprey-apply"));
+      } else if (k === "s" && e.shiftKey) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("osprey-save-query"));
       } else if (k === "=" || k === "+") {
         e.preventDefault();
         zoom("in");
@@ -102,14 +109,40 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [ui, ws, newQuery, zoom, t]);
 
+  const paletteActions: PaletteItem[] = [
+    { id: "a:new-conn", label: t("menu.newConnection"), group: t("palette.actions"), icon: "plus", shortcut: "Ctrl+N", run: () => ui.openConnectionDialog(null) },
+    { id: "a:new-query", label: t("menu.newQuery"), group: t("palette.actions"), icon: "fileCode", shortcut: "Ctrl+T", run: newQuery },
+    { id: "a:settings", label: t("menu.settings"), group: t("palette.actions"), icon: "settings", shortcut: "Ctrl+,", run: () => ui.openSettings("general") },
+    { id: "a:sidebar", label: t("menu.toggleSidebar"), group: t("palette.actions"), icon: "layers", shortcut: "Ctrl+B", run: () => ui.set({ showSidebar: !ui.showSidebar }) },
+    { id: "a:refresh", label: t("common.refresh"), group: t("palette.actions"), icon: "refresh", shortcut: "Ctrl+R", run: () => window.dispatchEvent(new CustomEvent("osprey-refresh")) },
+    { id: "a:theme-dark", label: `${t("settings.theme")}: ${t("settings.themeDark")}`, group: t("palette.actions"), icon: "circle", run: () => ui.set({ theme: "dark" }) },
+    { id: "a:theme-light", label: `${t("settings.theme")}: ${t("settings.themeLight")}`, group: t("palette.actions"), icon: "circle", run: () => ui.set({ theme: "light" }) },
+    { id: "a:theme-auto", label: `${t("settings.theme")}: ${t("settings.themeAuto")}`, group: t("palette.actions"), icon: "circle", run: () => ui.set({ theme: "auto" }) },
+    {
+      id: "a:system",
+      label: t("ctx.showSystem"),
+      hint: ui.showSystemObjects ? t("common.yes") : t("common.no"),
+      group: t("palette.actions"),
+      icon: "database",
+      run: () => {
+        ui.set({ showSystemObjects: !ui.showSystemObjects });
+        void ws.reloadAllSchemas();
+      },
+    },
+    { id: "a:close-tab", label: t("ctx.closeTab"), group: t("palette.actions"), icon: "x", shortcut: "Ctrl+W", run: () => ws.activeTabId && ws.closeTab(ws.activeTabId) },
+    { id: "a:about", label: t("menu.about"), group: t("palette.actions"), icon: "info", run: () => ui.openSettings("about") },
+  ];
+
   return (
     <div className="root">
+      <CommandPalette actions={paletteActions} />
       <TitleBar
         onNewConnection={() => ui.openConnectionDialog(null)}
         onNewQuery={newQuery}
         onOpenSettings={ui.openSettings}
         onToggleSidebar={() => ui.set({ showSidebar: !ui.showSidebar })}
         onZoom={zoom}
+        onPalette={() => ui.set({ paletteOpen: true })}
         onCheckUpdates={() => {
           ui.openSettings("about");
           void checkForUpdates();

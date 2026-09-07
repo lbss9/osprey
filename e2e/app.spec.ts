@@ -240,6 +240,25 @@ test.describe("query view", () => {
     await expect(hist.locator(".hist-item").first()).toContainText("Error");
     await hist.locator(".hist-item").nth(1).click();
     await expect(editor).toContainText("SELECT * FROM people LIMIT 5");
+
+    // save the query, find it in the Saved tab and in the palette
+    await page.keyboard.press("Control+Shift+s");
+    const prompt = page.locator(".dialog", { hasText: "Save query" });
+    await prompt.getByRole("textbox").fill("Five people");
+    await prompt.getByRole("button", { name: "Save" }).click();
+    await expect(page.locator(".tab.active")).toContainText("Five people");
+    await hist.getByRole("tab", { name: "Saved queries" }).click();
+    await expect(hist.locator(".hist-item", { hasText: "Five people" })).toBeVisible();
+    await hist.locator(".hist-item", { hasText: "Five people" }).click({ button: "right" });
+    await menu(page).getByText("Rename").click();
+    await page.locator(".dialog", { hasText: "Rename" }).getByRole("textbox").fill("Five folks");
+    await page.locator(".dialog", { hasText: "Rename" }).getByRole("button", { name: "Save" }).click();
+    await expect(hist.locator(".hist-item", { hasText: "Five folks" })).toBeVisible();
+    await page.keyboard.press("Control+k");
+    await page.locator(".palette").getByPlaceholder(/Type a table/).fill("folks");
+    await expect(page.locator(".palette-item.active")).toContainText("Five folks");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".tab.active")).toContainText("Five folks");
   });
 });
 
@@ -333,6 +352,29 @@ test.describe("shell", () => {
     await expect(page.locator(".sidebar")).toBeHidden();
     await page.keyboard.press("Control+b");
     await expect(page.locator(".sidebar")).toBeVisible();
+  });
+
+  test("command palette opens tables, tabs and actions", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.keyboard.press("Control+k");
+    const palette = page.locator(".palette");
+    await expect(palette).toBeVisible();
+    await palette.getByPlaceholder(/Type a table/).fill("peo");
+    await expect(palette.locator(".palette-item.active")).toContainText("people");
+    await page.keyboard.press("Enter");
+    await expect(palette).toBeHidden();
+    await expect(page.locator(".tab.active")).toContainText("people");
+
+    await page.keyboard.press("Control+p");
+    await palette.getByPlaceholder(/Type a table/).fill("theme light");
+    await page.keyboard.press("Enter");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.keyboard.press("Control+k");
+    await palette.getByPlaceholder(/Type a table/).fill("zzzz");
+    await expect(palette).toContainText("Nothing matches");
+    await page.keyboard.press("Escape");
+    await expect(palette).toBeHidden();
   });
 
   test("tabs close with confirmation when dirty", async ({ page }) => {

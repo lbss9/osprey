@@ -22,7 +22,8 @@
     "zoomOut": "Zoom out",
     "zoomReset": "Reset zoom",
     "checkUpdates": "Check for updates",
-    "about": "About Osprey"
+    "about": "About Osprey",
+    "palette": "Command palette"
   },
   "window": {
     "minimize": "Minimize",
@@ -250,7 +251,11 @@
     "format": "Format",
     "explain": "Explain",
     "cancelled": "Cancelled",
-    "error": "Query failed"
+    "error": "Query failed",
+    "load": "Load into editor",
+    "savedEmpty": "No saved queries yet. Use the save button in the query toolbar.",
+    "deleteSavedConfirm": "Delete saved query \"{{name}}\"?",
+    "anyConnection": "any connection"
   },
   "structure": {
     "columns": "Columns",
@@ -438,5 +443,14 @@
     "closeRight": "Close tabs to the right",
     "connection": "Connection",
     "database": "Database"
+  },
+  "palette": {
+    "title": "Command palette",
+    "placeholder": "Type a table, tab or command…",
+    "empty": "Nothing matches",
+    "tabs": "Open tabs",
+    "tables": "Tables",
+    "connections": "Connections",
+    "actions": "Actions"
   }
 }

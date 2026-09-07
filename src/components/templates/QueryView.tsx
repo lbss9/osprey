@@ -10,6 +10,7 @@ import Spinner from "@/components/atoms/Spinner";
 import TabButton from "@/components/atoms/Tab";
 import ConnChip from "@/components/molecules/ConnChip";
 import ExportMenu from "@/components/molecules/ExportMenu";
+import PromptDialog from "@/components/molecules/PromptDialog";
 import StatusBar from "@/components/molecules/StatusBar";
 import ValueDialog from "@/components/molecules/ValueDialog";
 import DataGrid from "@/components/organisms/DataGrid";
@@ -41,6 +42,8 @@ export default function QueryView({ tab }: { tab: Tab }) {
   const [historyVersion, setHistoryVersion] = useState(0);
   const [limit, setLimit] = useState(queryLimit);
   const [viewer, setViewer] = useState<{ r: number; c: number } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const toast = useWorkspace((s) => s.toast);
 
   const driver = conn?.driver ?? "postgres";
 
@@ -85,9 +88,14 @@ export default function QueryView({ tab }: { tab: Tab }) {
 
   useEffect(() => {
     const onRefresh = () => activeTabId === tab.id && void run();
+    const onSave = () => activeTabId === tab.id && (tab.sql ?? "").trim() && setSaving(true);
     window.addEventListener("osprey-refresh", onRefresh);
-    return () => window.removeEventListener("osprey-refresh", onRefresh);
-  }, [activeTabId, tab.id, run]);
+    window.addEventListener("osprey-save-query", onSave);
+    return () => {
+      window.removeEventListener("osprey-refresh", onRefresh);
+      window.removeEventListener("osprey-save-query", onSave);
+    };
+  }, [activeTabId, tab.id, tab.sql, run]);
 
   const gridSets = results?.map((s, i) => ({ s, i })).filter((x) => x.s.columns.length > 0) ?? [];
   const messagesIdx = results?.length ?? 0;
@@ -116,6 +124,7 @@ export default function QueryView({ tab }: { tab: Tab }) {
           onChange={(v) => setLimit(Number(v))}
           ariaLabel={t("query.limit")}
         />
+        <ToolButton icon="save" title={`${t("query.saveQuery")} (Ctrl+Shift+S)`} onClick={() => setSaving(true)} disabled={!(tab.sql ?? "").trim()} />
         <ToolButton icon="history" title={t("query.history")} active={showHistory} onClick={() => setShowHistory((v) => !v)} />
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -200,6 +209,25 @@ export default function QueryView({ tab }: { tab: Tab }) {
           />
         )}
       </div>
+      {saving && (
+        <PromptDialog
+          title={t("query.saveQuery")}
+          label={t("query.saveName")}
+          confirmLabel={t("common.save")}
+          onClose={() => setSaving(false)}
+          onConfirm={async (name) => {
+            try {
+              await api.savedQuerySave({ id: "", connectionId: tab.connectionId, name, sql: editor.current?.getText() ?? tab.sql ?? "", position: 0, updatedAt: 0 });
+              setSaving(false);
+              updateTab(tab.id, { title: name, dirty: false });
+              window.dispatchEvent(new CustomEvent("osprey-saved-queries"));
+              toast(t("toast.saved"), "success");
+            } catch (e) {
+              toast(translateError(e), "error");
+            }
+          }}
+        />
+      )}
       {viewer && current && (
         <ValueDialog
           title={current.columns[viewer.c]?.name ?? ""}

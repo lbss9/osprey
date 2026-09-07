@@ -14,6 +14,7 @@ export interface TitleBarProps {
   onToggleSidebar: () => void;
   onZoom: (dir: "in" | "out" | "reset") => void;
   onCheckUpdates: () => void;
+  onPalette: () => void;
   subtitle?: string;
 }
 
@@ -96,6 +97,7 @@ export default function TitleBar(p: TitleBarProps) {
       id: "view",
       label: t("menu.view"),
       items: [
+        { label: t("menu.palette"), icon: "search", shortcut: `${modKey}+K`, onSelect: p.onPalette },
         { label: t("menu.toggleSidebar"), shortcut: `${modKey}+B`, onSelect: p.onToggleSidebar },
         { separator: true },
         { label: t("menu.zoomIn"), shortcut: `${modKey}+=`, onSelect: () => p.onZoom("in") },

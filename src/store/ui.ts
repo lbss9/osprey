@@ -24,6 +24,7 @@ interface UiState {
   showSystemObjects: boolean;
   settingsOpen: boolean;
   settingsTab: string;
+  paletteOpen: boolean;
   connectionDialog: { open: boolean; editing?: ConnectionConfig | null; clone?: boolean };
 
   set: (patch: Partial<UiState>) => void;
@@ -50,6 +51,7 @@ export const useUi = create<UiState>()(
       showSystemObjects: false,
       settingsOpen: false,
       settingsTab: "general",
+      paletteOpen: false,
       connectionDialog: { open: false, editing: null },
 
       set: (patch) => set(patch),

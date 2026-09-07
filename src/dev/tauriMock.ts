@@ -20,6 +20,7 @@ import type {
   RedisValueRequest,
   ResultColumn,
   ResultSet,
+  SavedQuery,
   ServerInfo,
   TableFilter,
   TableInfo,
@@ -237,6 +238,7 @@ let connections: ConnectionConfig[] = [
 ];
 const sessions = new Map<string, string | undefined>();
 const history: HistoryEntry[] = [];
+const savedQueries: SavedQuery[] = [{ id: "sq-0", connectionId: "c-pg", name: "Active people", sql: "SELECT * FROM people WHERE active", position: 0, updatedAt: now() - 60_000 }];
 
 function serverInfo(c: ConnectionConfig, database?: string): ServerInfo {
   if (c.driver === "redis") return { driver: "redis", version: "7.4 (mock)", database: database ?? c.database ?? "0", user: null, extra: { keys: Object.keys(redisKeys).length } };
@@ -531,9 +533,20 @@ const handlers: Record<string, Handler> = {
   history_clear: ({ connectionId }) => {
     for (let i = history.length - 1; i >= 0; i--) if (!connectionId || history[i].connectionId === connectionId) history.splice(i, 1);
   },
-  saved_queries_list: () => [],
-  saved_query_save: ({ query }) => query,
-  saved_query_delete: () => undefined,
+  saved_queries_list: () => savedQueries.map((q) => ({ ...q })),
+  saved_query_save: ({ query }) => {
+    const q = { ...(query as SavedQuery) };
+    if (!q.id) q.id = `sq-${savedQueries.length + 1}`;
+    q.updatedAt = now();
+    const i = savedQueries.findIndex((x) => x.id === q.id);
+    if (i >= 0) savedQueries[i] = q;
+    else savedQueries.push(q);
+    return q;
+  },
+  saved_query_delete: ({ id }) => {
+    const i = savedQueries.findIndex((x) => x.id === id);
+    if (i >= 0) savedQueries.splice(i, 1);
+  },
 
   table_page: ({ connectionId, req }) => {
     session(connectionId as string);

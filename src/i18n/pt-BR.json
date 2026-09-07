@@ -22,7 +22,8 @@
     "zoomOut": "Diminuir zoom",
     "zoomReset": "Zoom padrão",
     "checkUpdates": "Verificar atualizações",
-    "about": "Sobre o Osprey"
+    "about": "Sobre o Osprey",
+    "palette": "Paleta de comandos"
   },
   "window": {
     "minimize": "Minimizar",
@@ -250,7 +251,11 @@
     "format": "Formatar",
     "explain": "Explicar",
     "cancelled": "Cancelada",
-    "error": "A consulta falhou"
+    "error": "A consulta falhou",
+    "load": "Carregar no editor",
+    "savedEmpty": "Nenhuma consulta salva ainda. Use o botão de salvar na barra da consulta.",
+    "deleteSavedConfirm": "Excluir a consulta salva \"{{name}}\"?",
+    "anyConnection": "qualquer conexão"
   },
   "structure": {
     "columns": "Colunas",
@@ -438,5 +443,14 @@
     "closeRight": "Fechar abas à direita",
     "connection": "Conexão",
     "database": "Banco"
+  },
+  "palette": {
+    "title": "Paleta de comandos",
+    "placeholder": "Digite uma tabela, aba ou comando…",
+    "empty": "Nada encontrado",
+    "tabs": "Abas abertas",
+    "tables": "Tabelas",
+    "connections": "Conexões",
+    "actions": "Ações"
   }
 }
