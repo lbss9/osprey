@@ -154,7 +154,8 @@ On macOS `Ctrl` is `⌘`.
                                         │ tauri::command
 ┌───────────────────────────────────────▼─────────────────── Rust (src-tauri) ─────────┐
 │  commands/   thin adapters: connections · sessions · schema · query · table · redis   │
-│  drivers/    SqlDriver trait → postgres · mysql; RedisSession; sql.rs (dialects,      │
+│  drivers/    SqlDriver trait → postgres · mysql · sqlite · clickhouse · mssql;          │
+│              RedisSession; ssh.rs tunnels; sql.rs (dialects,                            │
 │              filters, paging, UPDATE/INSERT/DELETE from pending edits)                │
 │  store/      SQLite (WAL) via rusqlite: connections · history · saved queries         │
 │  secrets.rs  keyring → OS credential store       error.rs: `errors.<key>|detail`      │
