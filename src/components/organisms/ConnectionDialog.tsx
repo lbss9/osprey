@@ -163,9 +163,10 @@ export default function ConnectionDialog() {
           </div>
           <ToolButton icon="x" title={t("common.close")} onClick={close} disabled={!!busy} />
         </div>
-        <div className="dialog-body">
-          {tab === "general" ? (
-            <>
+        {/* both panes stay mounted in one grid cell so the dialog keeps the
+            height of the taller one when switching tabs */}
+        <div className="dialog-body tab-stack">
+          <div className={`tab-pane ${tab === "general" ? "" : "hidden-pane"}`} aria-hidden={tab !== "general"}>
               <div className="driver-cards">
                 {DRIVERS.map((d) => (
                   <Button key={d.id} variant="bare" className={`driver-card ${form.driver === d.id ? "active" : ""}`} style={{ ["--card-color" as string]: d.color }} onClick={() => setDriver(d.id)}>
@@ -229,8 +230,8 @@ export default function ConnectionDialog() {
                   </div>
                 )}
               </div>
-            </>
-          ) : (
+          </div>
+          <div className={`tab-pane ${tab === "advanced" ? "" : "hidden-pane"}`} aria-hidden={tab !== "advanced"}>
             <div className="form-grid">
               <div className="span2">
                 <ToggleRow label={t("connection.readOnly")} desc={`${t("connection.readOnlyHint")}. ${t("connection.readOnlyServer")}`} checked={form.readOnly} onChange={(v) => set({ readOnly: v })} />
@@ -244,7 +245,7 @@ export default function ConnectionDialog() {
                 </Field>
               )}
             </div>
-          )}
+          </div>
         </div>
         <div className="dialog-foot">
           <Button variant="secondary" onClick={() => void doTest()} disabled={!!busy}>

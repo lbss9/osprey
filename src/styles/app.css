@@ -2655,3 +2655,16 @@ kbd {
   color: var(--text-faint);
   font-style: italic;
 }
+
+/* tabbed dialog body: panes overlap, the tallest one sets the height */
+.tab-stack {
+  display: grid;
+}
+.tab-stack > .tab-pane {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.tab-stack > .hidden-pane {
+  visibility: hidden;
+  pointer-events: none;
+}
