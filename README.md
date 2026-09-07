@@ -54,8 +54,8 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 **Connections**
 
-- PostgreSQL, MySQL/MariaDB, Redis and SQLite with one dialog: host, port, user, password,
-  database, TLS mode (off / prefer / require / verify), colour, group and read-only flag
+- PostgreSQL, MySQL/MariaDB, Redis, SQLite and ClickHouse with one dialog: host, port, user,
+  password, database, TLS mode (off / prefer / require / verify), colour, group and read-only flag
 - SSH tunnel per connection (password or private key), opened before the driver connects
 - *Test* connects once and shows the server version before you save
 - Right-click any connection, schema or table for a full context menu; *Properties…* edits the
@@ -75,7 +75,10 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 **Query tab**
 
-- CodeMirror 6 editor with the PostgreSQL, MySQL or SQLite dialect and autocompletion for schemas and tables
+- CodeMirror 6 editor with the PostgreSQL, MySQL or SQLite dialect and autocompletion for schemas,
+  tables and columns (the column list is fetched once per schema)
+- Results stream in while the statement runs: the first rows appear immediately and a long
+  query can be cancelled with what has arrived so far kept on screen
 - *Explain* and *Analyze* render the plan as a tree (PostgreSQL JSON plans, MySQL JSON / ANALYZE, SQLite query plan)
 - Saved queries with names, and a command palette (`Ctrl+K`) that opens any table, query or action by name
 - `Ctrl+Enter` runs the selection or everything; several statements per run, one result set per
@@ -88,6 +91,7 @@ the shell is Tauri 2, and the interface is React with its own identity.
   open the referenced table; `SHOW CREATE TABLE` on MySQL
 - Create tables, add / alter / drop columns, create indexes, rename, truncate and drop, always with
   the generated DDL shown before it runs
+- ER diagram per schema: tables as cards, foreign keys as links, drag to arrange, export as SVG
 - Import a CSV into an existing or a new table (delimiter and header detection, batched inserts in
   one transaction)
 
@@ -115,7 +119,8 @@ the shell is Tauri 2, and the interface is React with its own identity.
 | MySQL 8 / MariaDB 10+ | `mysql_async` (small pool, text protocol) | supported, tested on MySQL 8.4 and MariaDB 11 |
 | Redis 6+ | `redis` (`ConnectionManager`, RESP2/3) | supported |
 | SQLite 3 | `rusqlite` (bundled) | supported |
-| SQL Server, MongoDB, ClickHouse, DuckDB | — | planned |
+| ClickHouse 22.8+ | HTTP interface via `reqwest` (JSONCompact) | supported |
+| SQL Server, MongoDB, DuckDB | — | planned |
 
 TLS uses `rustls`. *Prefer* and *Require* encrypt without checking the certificate (what most
 clients do); *Verify* checks it against the operating system's trust store.
@@ -205,12 +210,14 @@ npm run release -- 0.2.0   # bump versions, tag v0.2.0 and push (CI builds and p
 | Frontend types | `npx tsc --noEmit` | strict TypeScript over `src/` |
 | Rust unit | `cargo test --manifest-path src-tauri/Cargo.toml` | SQL generation, quoting, console parsing |
 | Drivers (live servers) | `OSPREY_TEST_PG=… OSPREY_TEST_MYSQL=… OSPREY_TEST_REDIS=… OSPREY_TEST_SSH=… cargo test --manifest-path src-tauri/Cargo.toml --test drivers -- --ignored` | catalog, paging, edits in a transaction, multi-statement, cancel, Redis types, slow log / memory / pub/sub, SSH tunnel; the SQLite case runs without any server |
-| UI (Playwright) | `npm run test:e2e` | 20 specs: dialogs, context menus, grid editing and SQL preview, query editor, EXPLAIN, DDL editor, CSV import, Redis views and tools, JSON themes, drag-and-drop, locale formatting, settings |
+| Visual (Playwright) | `npm run test:visual` | pixel snapshots of the main screens, per platform, opt-in |
+| UI (Playwright) | `npm run test:e2e` | 24 specs: dialogs, context menus, grid editing and SQL preview, query editor, EXPLAIN, DDL editor, CSV import, Redis views and tools, JSON themes, drag-and-drop, locale formatting, settings |
 
 The UI suite runs in Chromium against the Vite dev server with an in-memory stand-in for the
 Rust backend (`src/dev/tauriMock.ts`, enabled by opening the app with `?mock=1`), so it needs
 neither the native window nor a database. `npm run test:e2e:ui` opens Playwright's inspector.
-CI runs all four layers on every push, with PostgreSQL, MySQL and Redis as service containers.
+CI runs the type check, unit, driver and UI layers on every push, with PostgreSQL, MySQL, Redis
+and ClickHouse as service containers. Visual snapshots are opt-in because fonts differ per OS.
 
 Your data lives in the app data folder (`%APPDATA%\com.lluan.osprey` on Windows,
 `~/Library/Application Support/com.lluan.osprey` on macOS, `~/.local/share/com.lluan.osprey` on
@@ -233,9 +240,10 @@ Linux). *Settings → Data → Open folder* takes you there.
 - [x] SQLite
 - [x] Redis slow log, memory by prefix, pub/sub
 - [x] JSON themes
-- [ ] Streaming of very large results
-- [ ] SQL Server, MongoDB, ClickHouse, DuckDB
-- [ ] ER diagram
+- [x] Streaming of very large results
+- [x] ClickHouse
+- [ ] SQL Server, MongoDB, DuckDB
+- [x] ER diagram
 
 ## Contributing
 

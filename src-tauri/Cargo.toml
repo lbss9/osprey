@@ -50,6 +50,7 @@ rustls-native-certs = "0.8"
 russh = { version = "0.63", default-features = false, features = ["ring", "rsa"] }
 csv = "1"
 notify = "8"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json", "query"] }
 
 # values
 chrono = { version = "0.4", features = ["serde"] }

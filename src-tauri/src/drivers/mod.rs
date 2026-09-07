@@ -2,6 +2,7 @@
 //! own session type because it is not relational. `connect` is the single
 //! entry point the commands use.
 
+pub mod clickhouse;
 pub mod mysql;
 pub mod postgres;
 pub mod redis;
@@ -148,6 +149,10 @@ async fn connect_direct(
         }
         DriverKind::Sqlite => {
             let d = sqlite::SqliteDriver::connect(config).await?;
+            Ok(Session::Sql(Arc::new(d)))
+        }
+        DriverKind::Clickhouse => {
+            let d = clickhouse::ClickhouseDriver::connect(config, password, database).await?;
             Ok(Session::Sql(Arc::new(d)))
         }
     }

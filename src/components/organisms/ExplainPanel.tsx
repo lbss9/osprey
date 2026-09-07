@@ -70,7 +70,8 @@ function sqliteTree(nodes: { id: number; parent: number; detail: string }[]): Pl
 
 export function toTree(r: ExplainResult): PlanNode[] {
   const driver: DriverKind = r.driver;
-  if (driver === "postgres" && Array.isArray(r.plan) && r.plan[0] && typeof r.plan[0] === "object") {
+  // ClickHouse `EXPLAIN json = 1` uses the same {Plan: {Node Type, Plans}} shape
+  if ((driver === "postgres" || driver === "clickhouse") && Array.isArray(r.plan) && r.plan[0] && typeof r.plan[0] === "object") {
     const root = (r.plan[0] as Record<string, unknown>)["Plan"] as Record<string, unknown> | undefined;
     if (!root) return [];
     const total = typeof root["Total Cost"] === "number" ? (root["Total Cost"] as number) : 0;

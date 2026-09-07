@@ -773,3 +773,98 @@ async fn mysql_streams_rows_in_batches() {
     assert_eq!(batches.iter().filter(|b| b.set == 0).count(), 2);
     assert_eq!(batches.iter().filter(|b| b.set == 1).count(), 1);
 }
+
+#[tokio::test]
+#[ignore]
+async fn clickhouse_end_to_end() {
+    drivers::init_crypto();
+    let Some(d) = sql_session("OSPREY_TEST_CLICKHOUSE", DriverKind::Clickhouse).await else {
+        eprintln!("OSPREY_TEST_CLICKHOUSE not set; skipping");
+        return;
+    };
+    let dialect = Dialect::Clickhouse;
+    let info = d.server_info().await.unwrap();
+    println!("clickhouse {} db={:?} user={:?}", info.version, info.database, info.user);
+
+    d.execute_transaction(&[
+        "DROP TABLE IF EXISTS demo.people".into(),
+        "CREATE TABLE demo.people (id UInt64, name String, age Nullable(Int32), score Decimal(8,2), active Bool, born Date, seen DateTime, tags Array(String)) ENGINE = MergeTree ORDER BY id".into(),
+        "INSERT INTO demo.people SELECT number + 1, concat('person ', toString(number + 1)), if(number % 7 = 0, NULL, toInt32(20 + number % 50)), toDecimal64(number, 2) / 3, number % 2 = 0, toDate('2024-01-01') + number % 28, toDateTime('2024-01-01 10:00:00') + number, ['a', 'b'] FROM numbers(900)".into(),
+    ])
+    .await
+    .unwrap();
+
+    let dbs = d.list_databases(false).await.unwrap();
+    assert!(dbs.contains(&"demo".to_string()) && !dbs.contains(&"system".to_string()), "{dbs:?}");
+    assert!(d.list_databases(true).await.unwrap().contains(&"system".to_string()));
+    let tables = d.list_tables("demo").await.unwrap();
+    let t = tables.iter().find(|t| t.name == "people").expect("people listed");
+    assert_eq!(t.row_estimate, Some(900));
+    let cols = d.columns("demo", "people").await.unwrap();
+    assert_eq!(cols.len(), 8);
+    assert!(cols[0].primary_key && !cols[0].nullable);
+    assert!(cols[2].nullable && cols[2].data_type == "Nullable(Int32)");
+    let st = d.structure("demo", "people").await.unwrap();
+    assert!(st.indexes.iter().any(|i| i.primary && i.columns == vec!["id".to_string()]));
+    assert!(st.ddl.as_deref().unwrap_or("").contains("MergeTree"));
+    let all = d.schema_columns("demo").await.unwrap();
+    assert!(all.iter().any(|t| t.table == "people" && t.columns.len() == 8));
+
+    let req = page(
+        "demo",
+        "people",
+        vec![TableFilter { column: "name".into(), op: "starts".into(), value: Some("PERSON 1".into()) }],
+        Some(SortSpec { column: "age".into(), desc: true }),
+        20,
+        0,
+    );
+    let set = d.query(&dialect.select_page(&req).unwrap(), 20).await.unwrap().pop().unwrap();
+    assert_eq!(set.rows.len(), 20);
+    let id_col = set.columns.iter().position(|c| c.name == "id").unwrap();
+    assert_eq!(set.columns[id_col].kind, ColumnKind::Number);
+    assert!(set.rows[0][id_col].is_number());
+    assert_eq!(set.columns.iter().find(|c| c.name == "active").unwrap().kind, ColumnKind::Bool);
+    assert_eq!(set.columns.iter().find(|c| c.name == "tags").unwrap().kind, ColumnKind::Json);
+    assert_eq!(cell(&set, 0, "tags"), &json!("[\"a\",\"b\"]"));
+    let n = d.query(&dialect.select_count(&req).unwrap(), 1).await.unwrap().pop().unwrap().rows[0][0].clone();
+    assert!(n.as_i64().unwrap() > 20, "{n}");
+
+    // edits: update + delete + insert through the generated statements
+    let mut key = serde_json::Map::new();
+    key.insert("id".into(), json!(5));
+    let mut set_ = serde_json::Map::new();
+    set_.insert("name".into(), json!("renamed"));
+    let mut key2 = serde_json::Map::new();
+    key2.insert("id".into(), json!(6));
+    let mut vals = serde_json::Map::new();
+    vals.insert("id".into(), json!(100000));
+    vals.insert("name".into(), json!("new one"));
+    let changes = ApplyChangesRequest {
+        schema: "demo".into(),
+        table: "people".into(),
+        changes: vec![RowChange::Update { key, set: set_ }, RowChange::Delete { key: key2 }, RowChange::Insert { values: vals }],
+        preview: false,
+    };
+    d.execute_transaction(&dialect.changes(&changes).unwrap()).await.unwrap();
+    let check = d.query("SELECT name FROM demo.people WHERE id IN (5, 6, 100000) ORDER BY id", 10).await.unwrap().pop().unwrap();
+    assert_eq!(check.rows.len(), 2);
+    assert_eq!(check.rows[0][0], json!("renamed"));
+    assert_eq!(check.rows[1][0], json!("new one"));
+
+    // multi-statement, truncation, streaming
+    let sets = d.query("SELECT 1 AS a; SELECT number FROM numbers(3000)", 1000).await.unwrap();
+    assert_eq!(sets.len(), 2);
+    assert!(sets[1].truncated && sets[1].rows.len() == 1000);
+    let (sink, got) = collecting_sink();
+    let sets = d.query_with("SELECT number FROM numbers(10)", 100, Some(sink)).await.unwrap();
+    assert!(sets[0].streamed && got.lock().unwrap()[0].rows.len() == 10);
+
+    // errors
+    let err = d.query("SELECT * FROM demo.nope", 10).await.unwrap_err();
+    assert!(matches!(err, osprey_lib::error::AppError::Query(_)), "{err:?}");
+
+    // DDL through the dialect
+    d.execute_transaction(&dialect.ddl(&DdlOp::AddColumn { schema: "demo".into(), table: "people".into(), column: DdlColumn { name: "note".into(), data_type: "String".into(), nullable: true, primary_key: false, auto_increment: false, default: None } }).unwrap()).await.unwrap();
+    assert!(d.columns("demo", "people").await.unwrap().iter().any(|c| c.name == "note" && c.data_type == "Nullable(String)"));
+    d.execute_transaction(&dialect.ddl(&DdlOp::DropTable { schema: "demo".into(), table: "people".into() }).unwrap()).await.unwrap();
+}

@@ -25,6 +25,7 @@ pub async fn table_page(
                 c.kind = match s.kind() {
                     crate::models::DriverKind::Postgres => crate::drivers::value::pg_kind(&meta.data_type),
                     crate::models::DriverKind::Sqlite => crate::drivers::value::sqlite_kind(&meta.data_type),
+                    crate::models::DriverKind::Clickhouse => crate::drivers::value::clickhouse_kind(&meta.data_type),
                     _ => crate::drivers::value::mysql_kind_from_name(&meta.data_type),
                 };
             }

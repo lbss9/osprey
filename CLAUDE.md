@@ -1,6 +1,6 @@
 # Osprey — notes for AI assistants and contributors
 
-Desktop database client (PostgreSQL, MySQL/MariaDB, Redis) built with Tauri 2 + Rust + React.
+Desktop database client (PostgreSQL, MySQL/MariaDB, Redis, SQLite, ClickHouse) built with Tauri 2 + Rust + React.
 The full knowledge base (decisions, research, release process, pitfalls) lives in the Obsidian
 vault at `E:\Documentos\Osprey` — read `07 - Guia para IAs e devs.md` there before larger changes.
 
@@ -9,7 +9,7 @@ vault at `E:\Documentos\Osprey` — read `07 - Guia para IAs e devs.md` there be
 - `src/` — React 19 + TypeScript. **Atomic design**: `components/atoms → molecules → organisms →
   templates`, `pages/App.tsx`. State in `store/` (zustand), IPC wrappers in `services/tauri.ts`,
   strings in `i18n/{en,pt-BR}.json` (every visible string goes through `t()`).
-- `src-tauri/src/` — Rust. `drivers/` (SqlDriver trait: postgres, mysql; RedisSession; `sql.rs`
+- `src-tauri/src/` — Rust. `drivers/` (SqlDriver trait: postgres, mysql, sqlite, clickhouse; RedisSession; `sql.rs`
   builds the SQL the table view runs), `store/` (local SQLite), `secrets.rs` (OS keychain),
   `commands/` (thin `#[tauri::command]` adapters), `models.rs` (DTOs, mirrored in `src/types`).
 - Errors cross the bridge as `errors.<key>|detail`; the frontend translates them.

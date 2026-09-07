@@ -156,7 +156,9 @@
     "sqlite": "SQLite",
     "sqliteFile": "Arquivo do banco",
     "sqliteCreate": "Criar o arquivo se não existir",
-    "sqliteCreateHint": "Desligado: conectar num caminho inexistente dá erro"
+    "sqliteCreateHint": "Desligado: conectar num caminho inexistente dá erro",
+    "clickhouse": "ClickHouse",
+    "clickhouseHint": "Interface HTTP (8123, ou 8443 com TLS). Bancos fazem o papel de schema; não há transações."
   },
   "tabs": {
     "query": "Consulta",

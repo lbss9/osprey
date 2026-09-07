@@ -156,7 +156,9 @@
     "sqlite": "SQLite",
     "sqliteFile": "Database file",
     "sqliteCreate": "Create the file if it does not exist",
-    "sqliteCreateHint": "Off: connecting to a missing path is an error"
+    "sqliteCreateHint": "Off: connecting to a missing path is an error",
+    "clickhouse": "ClickHouse",
+    "clickhouseHint": "HTTP interface (8123, or 8443 with TLS). Databases play the schema role; there are no transactions."
   },
   "tabs": {
     "query": "Query",

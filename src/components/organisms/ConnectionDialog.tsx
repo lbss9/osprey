@@ -23,6 +23,7 @@ const DRIVERS: { id: DriverKind; color: string; hint: string }[] = [
   { id: "mysql", color: "var(--mysql)", hint: "3306" },
   { id: "redis", color: "var(--redis)", hint: "6379" },
   { id: "sqlite", color: "var(--sqlite)", hint: "file" },
+  { id: "clickhouse", color: "var(--clickhouse)", hint: "8123" },
 ];
 
 function blank(driver: DriverKind = "postgres"): ConnectionConfig {
@@ -31,7 +32,7 @@ function blank(driver: DriverKind = "postgres"): ConnectionConfig {
     name: "",
     driver,
     host: "localhost",
-    port: driver === "postgres" ? 5432 : driver === "mysql" ? 3306 : driver === "redis" ? 6379 : 0,
+    port: driver === "postgres" ? 5432 : driver === "mysql" ? 3306 : driver === "redis" ? 6379 : driver === "clickhouse" ? 8123 : 0,
     user: driver === "postgres" ? "postgres" : driver === "mysql" ? "root" : "",
     database: driver === "redis" ? "0" : "",
     sslMode: driver === "redis" ? "disable" : "prefer",
@@ -253,7 +254,7 @@ export default function ConnectionDialog() {
                   </div>
                 </Field>
                 <Field label={isRedis ? t("connection.redisDb") : form.driver === "mysql" ? t("connection.databaseOptional") : t("connection.database")}>
-                  <Input mono value={form.database} onChange={(e) => set({ database: e.target.value })} placeholder={isRedis ? "0" : form.driver === "postgres" ? "postgres" : ""} />
+                  <Input mono value={form.database} onChange={(e) => set({ database: e.target.value })} placeholder={isRedis ? "0" : form.driver === "postgres" ? "postgres" : form.driver === "clickhouse" ? "default" : ""} />
                 </Field>
                 <Field label={t("connection.ssl")}>
                   <Dropdown value={form.sslMode} options={sslOptions} onChange={(v) => set({ sslMode: v as SslMode })} ariaLabel={t("connection.ssl")} />

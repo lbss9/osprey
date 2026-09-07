@@ -64,7 +64,7 @@ const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(function SqlEditor
 
   const langExt = () =>
     sql({
-      dialect: p.driver === "mysql" ? MySQL : PostgreSQL,
+      dialect: p.driver === "mysql" || p.driver === "clickhouse" ? MySQL : PostgreSQL,
       schema: p.schema,
       defaultSchema: p.defaultSchema,
       upperCaseKeywords: true,

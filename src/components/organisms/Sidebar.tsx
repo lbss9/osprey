@@ -15,7 +15,7 @@ import { confirmDialog } from "@/utils/dialog";
 import { formatNumber, quoteIdent, modKey } from "@/utils/format";
 import type { ConnectionConfig, TableInfo } from "@/types";
 
-const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)", sqlite: "var(--sqlite)" };
+const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)", sqlite: "var(--sqlite)", clickhouse: "var(--clickhouse)" };
 
 function connectionUrl(c: ConnectionConfig): string {
   if (c.driver === "sqlite") return `sqlite:///${c.database}`;

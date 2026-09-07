@@ -291,3 +291,35 @@ pub fn pg_text_to_json(text: Option<&str>, kind: ColumnKind) -> serde_json::Valu
         _ => J::String(s.to_string()),
     }
 }
+
+/// ClickHouse type name → kind. Wrappers (`Nullable`, `LowCardinality`) are
+/// peeled first; containers show as JSON text.
+pub fn clickhouse_kind(ty: &str) -> ColumnKind {
+    let mut t = ty.trim();
+    loop {
+        let lower = t.to_ascii_lowercase();
+        if let Some(inner) = lower.strip_prefix("nullable(").or_else(|| lower.strip_prefix("lowcardinality(")) {
+            let start = t.len() - inner.len();
+            t = t[start..].trim_end_matches(')');
+        } else {
+            break;
+        }
+    }
+    let lower = t.to_ascii_lowercase();
+    if lower == "bool" {
+        return ColumnKind::Bool;
+    }
+    if lower.starts_with("uint") || lower.starts_with("int") || lower.starts_with("float") || lower.starts_with("decimal") {
+        return ColumnKind::Number;
+    }
+    if lower.starts_with("date") {
+        return ColumnKind::Date;
+    }
+    if lower == "string" || lower.starts_with("fixedstring") || lower == "uuid" || lower.starts_with("enum") || lower.starts_with("ipv") {
+        return ColumnKind::String;
+    }
+    if lower.starts_with("array") || lower.starts_with("map") || lower.starts_with("tuple") || lower.starts_with("json") || lower.starts_with("object") || lower.starts_with("nested") || lower.starts_with("variant") {
+        return ColumnKind::Json;
+    }
+    ColumnKind::Other
+}

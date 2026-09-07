@@ -169,23 +169,23 @@ export function rowToCsv(row: Cell[]): string {
   return row.map((v) => csvEscape(cellText(v))).join(",");
 }
 
-export function sqlLiteral(v: Cell, driver: "postgres" | "mysql" | "redis" | "sqlite"): string {
+export function sqlLiteral(v: Cell, driver: "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse"): string {
   if (v === null || v === undefined) return "NULL";
   if (typeof v === "number") return String(v);
   if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
-  const s = driver === "mysql" ? v.replace(/\\/g, "\\\\").replace(/'/g, "''") : v.replace(/'/g, "''");
+  const s = driver === "mysql" || driver === "clickhouse" ? v.replace(/\\/g, "\\\\").replace(/'/g, "''") : v.replace(/'/g, "''");
   return `'${s}'`;
 }
 
-export function quoteIdent(name: string, driver: "postgres" | "mysql" | "redis" | "sqlite"): string {
-  return driver === "mysql" ? `\`${name.replace(/`/g, "``")}\`` : `"${name.replace(/"/g, '""')}"`;
+export function quoteIdent(name: string, driver: "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse"): string {
+  return driver === "mysql" || driver === "clickhouse" ? `\`${name.replace(/`/g, "``")}\`` : `"${name.replace(/"/g, '""')}"`;
 }
 
 export function rowToInsert(
   columns: ResultColumn[],
   row: Cell[],
   table: string,
-  driver: "postgres" | "mysql" | "redis" | "sqlite",
+  driver: "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse",
 ): string {
   const cols = columns.map((c) => quoteIdent(c.name, driver)).join(", ");
   const vals = row.map((v) => sqlLiteral(v, driver)).join(", ");
@@ -193,7 +193,7 @@ export function rowToInsert(
 }
 
 export function driverLabel(driver: string): string {
-  return driver === "postgres" ? "PostgreSQL" : driver === "mysql" ? "MySQL" : driver === "sqlite" ? "SQLite" : "Redis";
+  return driver === "postgres" ? "PostgreSQL" : driver === "mysql" ? "MySQL" : driver === "sqlite" ? "SQLite" : driver === "clickhouse" ? "ClickHouse" : "Redis";
 }
 
 export const isMac = /Mac/i.test(navigator.userAgent);

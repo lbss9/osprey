@@ -13,6 +13,7 @@ pub enum DriverKind {
     Mysql,
     Redis,
     Sqlite,
+    Clickhouse,
 }
 
 impl DriverKind {
@@ -22,6 +23,7 @@ impl DriverKind {
             DriverKind::Mysql => "mysql",
             DriverKind::Redis => "redis",
             DriverKind::Sqlite => "sqlite",
+            DriverKind::Clickhouse => "clickhouse",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -30,6 +32,7 @@ impl DriverKind {
             "mysql" => Some(DriverKind::Mysql),
             "redis" => Some(DriverKind::Redis),
             "sqlite" => Some(DriverKind::Sqlite),
+            "clickhouse" => Some(DriverKind::Clickhouse),
             _ => None,
         }
     }
@@ -39,6 +42,7 @@ impl DriverKind {
             DriverKind::Mysql => 3306,
             DriverKind::Redis => 6379,
             DriverKind::Sqlite => 0,
+            DriverKind::Clickhouse => 8123,
         }
     }
 }

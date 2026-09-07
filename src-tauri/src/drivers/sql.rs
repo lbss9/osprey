@@ -12,13 +12,14 @@ pub enum Dialect {
     Postgres,
     Mysql,
     Sqlite,
+    Clickhouse,
 }
 
 impl Dialect {
     pub fn quote_ident(&self, name: &str) -> String {
         match self {
             Dialect::Postgres | Dialect::Sqlite => format!("\"{}\"", name.replace('"', "\"\"")),
-            Dialect::Mysql => format!("`{}`", name.replace('`', "``")),
+            Dialect::Mysql | Dialect::Clickhouse => format!("`{}`", name.replace('`', "``")),
         }
     }
 
@@ -33,7 +34,7 @@ impl Dialect {
                     format!("'{}'", s.replace('\'', "''"))
                 }
             }
-            Dialect::Mysql => {
+            Dialect::Mysql | Dialect::Clickhouse => {
                 let mut out = String::with_capacity(s.len() + 2);
                 out.push('\'');
                 for ch in s.chars() {
@@ -86,12 +87,13 @@ impl Dialect {
             Dialect::Postgres => format!("{}::text", self.quote_ident(col)),
             Dialect::Mysql => self.quote_ident(col),
             Dialect::Sqlite => format!("CAST({} AS TEXT)", self.quote_ident(col)),
+            Dialect::Clickhouse => format!("toString({})", self.quote_ident(col)),
         }
     }
 
     fn like_op(&self) -> &'static str {
         match self {
-            Dialect::Postgres => "ILIKE",
+            Dialect::Postgres | Dialect::Clickhouse => "ILIKE",
             // MySQL collations and SQLite's LIKE are case-insensitive for ASCII already
             Dialect::Mysql | Dialect::Sqlite => "LIKE",
         }
@@ -218,10 +220,11 @@ impl Dialect {
                         .map(|(k, v)| format!("{} = {}", self.quote_ident(k), self.literal(v)))
                         .collect::<Vec<_>>()
                         .join(", ");
-                    out.push(format!(
-                        "UPDATE {target} SET {assigns} WHERE {}",
-                        self.key_condition(key)
-                    ));
+                    out.push(match self {
+                        // mutations; mutations_sync makes the grid reload see the change
+                        Dialect::Clickhouse => format!("ALTER TABLE {target} UPDATE {assigns} WHERE {} SETTINGS mutations_sync = 1", self.key_condition(key)),
+                        _ => format!("UPDATE {target} SET {assigns} WHERE {}", self.key_condition(key)),
+                    });
                 }
                 RowChange::Insert { values } => {
                     let cols: Vec<String> = values.keys().map(|k| self.quote_ident(k)).collect();
@@ -230,6 +233,7 @@ impl Dialect {
                         out.push(match self {
                             Dialect::Postgres | Dialect::Sqlite => format!("INSERT INTO {target} DEFAULT VALUES"),
                             Dialect::Mysql => format!("INSERT INTO {target} () VALUES ()"),
+                            Dialect::Clickhouse => return Err(AppError::Unsupported("ClickHouse needs at least one value to insert".into())),
                         });
                     } else {
                         out.push(format!(
@@ -271,6 +275,11 @@ impl Dialect {
             Dialect::Sqlite => {
                 parts.push(if c.auto_increment { "INTEGER".into() } else { ty.to_string() });
             }
+            Dialect::Clickhouse => {
+                // types are NOT NULL by default; nullability is part of the type
+                let lower = ty.to_ascii_lowercase();
+                parts.push(if c.nullable && !c.primary_key && !lower.starts_with("nullable(") { format!("Nullable({ty})") } else { ty.to_string() });
+            }
         }
         if inline_pk && c.primary_key {
             parts.push("PRIMARY KEY".into());
@@ -278,7 +287,7 @@ impl Dialect {
                 parts.push("AUTOINCREMENT".into());
             }
         }
-        if !c.nullable && !c.primary_key {
+        if !c.nullable && !c.primary_key && *self != Dialect::Clickhouse {
             parts.push("NOT NULL".into());
         }
         if let Some(d) = c.default.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
@@ -304,7 +313,14 @@ impl Dialect {
                 if pks.len() > 1 {
                     defs.push(format!("PRIMARY KEY ({})", pks.iter().map(|c| self.quote_ident(&c.name)).collect::<Vec<_>>().join(", ")));
                 }
-                vec![format!("CREATE TABLE {} (\n  {}\n)", self.qualified(schema, table), defs.join(",\n  "))]
+                match self {
+                    Dialect::Clickhouse => {
+                        let order = if pks.is_empty() { "tuple()".to_string() } else { format!("({})", pks.iter().map(|c| self.quote_ident(&c.name)).collect::<Vec<_>>().join(", ")) };
+                        let defs: Vec<String> = columns.iter().map(|c| self.column_def(c, false)).collect();
+                        vec![format!("CREATE TABLE {} (\n  {}\n) ENGINE = MergeTree ORDER BY {order}", self.qualified(schema, table), defs.join(",\n  "))]
+                    }
+                    _ => vec![format!("CREATE TABLE {} (\n  {}\n)", self.qualified(schema, table), defs.join(",\n  "))],
+                }
             }
             DdlOp::AddColumn { schema, table, column } => {
                 vec![format!("ALTER TABLE {} ADD COLUMN {}", self.qualified(schema, table), self.column_def(column, true))]
@@ -349,6 +365,19 @@ impl Dialect {
                             return Err(AppError::Unsupported("SQLite cannot change a column's type, nullability or default in place; create a new table and copy the data".into()));
                         }
                     }
+                    Dialect::Clickhouse => {
+                        if data_type.is_some() || nullable.is_some() || *set_default {
+                            let t = data_type.as_deref().map(str::trim).filter(|t| !t.is_empty()).ok_or_else(|| AppError::Unsupported("ClickHouse needs the column type to change nullability or default".into()))?;
+                            let ty = if nullable == &Some(true) && !t.to_ascii_lowercase().starts_with("nullable(") { format!("Nullable({t})") } else { t.to_string() };
+                            let mut def = format!("ALTER TABLE {target} MODIFY COLUMN {col} {ty}");
+                            if *set_default {
+                                if let Some(d) = default.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+                                    def.push_str(&format!(" DEFAULT {d}"));
+                                }
+                            }
+                            out.push(def);
+                        }
+                    }
                 }
                 if let Some(n) = new_name.as_deref().map(str::trim).filter(|n| !n.is_empty() && *n != name) {
                     out.push(format!("ALTER TABLE {target} RENAME COLUMN {col} TO {}", self.quote_ident(n)));
@@ -358,9 +387,10 @@ impl Dialect {
             DdlOp::DropColumn { schema, table, name } => {
                 vec![format!("ALTER TABLE {} DROP COLUMN {}", self.qualified(schema, table), self.quote_ident(name))]
             }
-            DdlOp::RenameTable { schema, table, new_name } => {
-                vec![format!("ALTER TABLE {} RENAME TO {}", self.qualified(schema, table), self.quote_ident(new_name))]
-            }
+            DdlOp::RenameTable { schema, table, new_name } => match self {
+                Dialect::Clickhouse => vec![format!("RENAME TABLE {} TO {}", self.qualified(schema, table), self.qualified(schema, new_name))],
+                _ => vec![format!("ALTER TABLE {} RENAME TO {}", self.qualified(schema, table), self.quote_ident(new_name))],
+            },
             DdlOp::CreateIndex { schema, table, name, columns, unique } => {
                 if columns.is_empty() {
                     return Err(AppError::Unsupported("an index needs at least one column".into()));
@@ -370,6 +400,8 @@ impl Dialect {
                 match self {
                     // SQLite attaches the schema to the index, and the table must be bare
                     Dialect::Sqlite => vec![format!("CREATE {uniq}INDEX {} ON {} ({cols})", self.qualified(schema, name), self.quote_ident(table))],
+                    // data-skipping index; ClickHouse has no unique indexes
+                    Dialect::Clickhouse => vec![format!("ALTER TABLE {} ADD INDEX {} ({cols}) TYPE minmax GRANULARITY 1", self.qualified(schema, table), self.quote_ident(name))],
                     _ => vec![format!("CREATE {uniq}INDEX {} ON {} ({cols})", self.quote_ident(name), self.qualified(schema, table))],
                 }
             }
@@ -377,6 +409,7 @@ impl Dialect {
                 Dialect::Postgres => vec![format!("DROP INDEX {}", self.qualified(schema, name))],
                 Dialect::Mysql => vec![format!("DROP INDEX {} ON {}", self.quote_ident(name), self.qualified(schema, table))],
                 Dialect::Sqlite => vec![format!("DROP INDEX {}", self.qualified(schema, name))],
+                Dialect::Clickhouse => vec![format!("ALTER TABLE {} DROP INDEX {}", self.qualified(schema, table), self.quote_ident(name))],
             },
             DdlOp::DropTable { schema, table } => vec![format!("DROP TABLE {}", self.qualified(schema, table))],
             DdlOp::TruncateTable { schema, table } => match self {
@@ -449,6 +482,22 @@ mod tests {
         assert!(Dialect::Sqlite.ddl(&op).is_err());
         let rename_only = DdlOp::AlterColumn { schema: "main".into(), table: "t".into(), name: "a".into(), new_name: Some("b".into()), data_type: None, nullable: None, set_default: false, default: None };
         assert_eq!(Dialect::Sqlite.ddl(&rename_only).unwrap(), vec!["ALTER TABLE \"main\".\"t\" RENAME COLUMN \"a\" TO \"b\""]);
+    }
+
+    #[test]
+    fn clickhouse_dialect() {
+        let d = Dialect::Clickhouse;
+        assert_eq!(d.quote_ident("a`b"), "`a``b`");
+        let op = DdlOp::CreateTable { schema: "demo".into(), table: "t".into(), columns: vec![{ let mut c = col("id", "UInt64"); c.primary_key = true; c }, { let mut c = col("name", "String"); c.nullable = true; c }] };
+        let sql = d.ddl(&op).unwrap();
+        assert_eq!(sql[0], "CREATE TABLE `demo`.`t` (\n  `id` UInt64,\n  `name` Nullable(String)\n) ENGINE = MergeTree ORDER BY (`id`)");
+        let mut key = serde_json::Map::new();
+        key.insert("id".into(), json!(5));
+        let mut set = serde_json::Map::new();
+        set.insert("name".into(), json!("x"));
+        let req = ApplyChangesRequest { schema: "demo".into(), table: "t".into(), changes: vec![RowChange::Update { key, set }], preview: false };
+        assert_eq!(d.changes(&req).unwrap()[0], "ALTER TABLE `demo`.`t` UPDATE `name` = 'x' WHERE `id` = 5 SETTINGS mutations_sync = 1");
+        assert_eq!(d.ddl(&DdlOp::CreateIndex { schema: "demo".into(), table: "t".into(), name: "ix".into(), columns: vec!["name".into()], unique: false }).unwrap()[0], "ALTER TABLE `demo`.`t` ADD INDEX `ix` (`name`) TYPE minmax GRANULARITY 1");
     }
 
     #[test]

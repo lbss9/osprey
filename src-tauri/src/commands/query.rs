@@ -127,6 +127,12 @@ pub async fn query_explain(
                 .collect();
             Ok(ExplainResult { driver, plan: serde_json::json!({ "nodes": nodes }), text: None })
         }
+        DriverKind::Clickhouse => {
+            let sets = s.query(&format!("EXPLAIN json = 1, description = 1, indexes = 1 {body}"), HARD_MAX_ROWS).await?;
+            let text = text_of(&sets);
+            let plan: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text.clone()));
+            Ok(ExplainResult { driver, plan, text: None })
+        }
         DriverKind::Redis => Err(crate::error::AppError::Unsupported("explain".into()).into()),
     }
 }

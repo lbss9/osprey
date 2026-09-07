@@ -34,6 +34,15 @@ jobs:
         ports: ["56379:6379"]
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: osprey
+          CLICKHOUSE_DB: demo
+        ports: ["58123:8123"]
+        options: >-
+          --health-cmd "wget -qO- http://127.0.0.1:8123/ping" --health-interval 5s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -68,4 +77,5 @@ jobs:
           OSPREY_TEST_PG: postgres://postgres:osprey@127.0.0.1:55432/demo
           OSPREY_TEST_MYSQL: mysql://root:osprey@127.0.0.1:53306/demo
           OSPREY_TEST_REDIS: redis://127.0.0.1:56379/0
+          OSPREY_TEST_CLICKHOUSE: http://default:osprey@127.0.0.1:58123/demo
         run: cargo test --manifest-path src-tauri/Cargo.toml --test drivers -- --ignored --test-threads=1
