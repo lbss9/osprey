@@ -192,11 +192,28 @@ impl SqlDriver for MysqlDriver {
                 d.quote_literal(table)
             ))
             .await?;
+        // MariaDB stores JSON as LONGTEXT plus a `json_valid(col)` check; surface it as json.
+        let json_cols: Vec<String> = self
+            .text_rows(&format!(
+                "SELECT CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS
+                 WHERE CONSTRAINT_SCHEMA = {} AND TABLE_NAME = {} AND CHECK_CLAUSE LIKE 'json_valid(%'",
+                d.quote_literal(schema),
+                d.quote_literal(table)
+            ))
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|r| {
+                let c = s(&r[0]);
+                let inner = c.strip_prefix("json_valid(")?.trim_end_matches(')');
+                Some(inner.trim_matches('`').to_string())
+            })
+            .collect();
         Ok(rows
             .into_iter()
             .map(|r| ColumnInfo {
                 name: s(&r[0]),
-                data_type: s(&r[1]),
+                data_type: if json_cols.contains(&s(&r[0])) { "json".into() } else { s(&r[1]) },
                 nullable: s(&r[2]).eq_ignore_ascii_case("YES"),
                 primary_key: s(&r[3]) == "PRI",
                 default: r[4].clone(),

@@ -27,7 +27,14 @@ every connection on your disk, and lets someone who has never written SQL browse
 table safely. PostgreSQL, MySQL/MariaDB and Redis today; more engines later. The engine is Rust,
 the shell is Tauri 2, and the interface is React with its own identity.
 
-<!-- screenshots go here: docs/assets/screenshot-dark.png / screenshot-light.png -->
+<p align="center">
+  <img src="docs/assets/screenshot-dark.png" alt="Osprey, dark theme: query editor with results grid" width="100%">
+</p>
+<p align="center">
+  <img src="docs/assets/screenshot-light.png" alt="Osprey, light theme" width="49%">
+  &nbsp;
+  <img src="docs/assets/app-icon.png" alt="Osprey icon" width="12%">
+</p>
 
 ## Why another database client
 
@@ -47,9 +54,12 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 **Connections**
 
-- PostgreSQL, MySQL/MariaDB and Redis with one dialog: host, port, user, password, database,
-  TLS mode (off / prefer / require / verify), colour, group and read-only flag
+- PostgreSQL, MySQL/MariaDB, Redis and SQLite with one dialog: host, port, user, password,
+  database, TLS mode (off / prefer / require / verify), colour, group and read-only flag
+- SSH tunnel per connection (password or private key), opened before the driver connects
 - *Test* connects once and shows the server version before you save
+- Right-click any connection, schema or table for a full context menu; *Properties…* edits the
+  connection in place; drag connections to reorder them
 - Sidebar tree: connection → database → schema → tables and views with row estimates, plus a
   quick filter. Switch database (PostgreSQL) or DB index (Redis) in place
 
@@ -65,7 +75,9 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 **Query tab**
 
-- CodeMirror 6 editor with the PostgreSQL or MySQL dialect and autocompletion for schemas and tables
+- CodeMirror 6 editor with the PostgreSQL, MySQL or SQLite dialect and autocompletion for schemas and tables
+- *Explain* and *Analyze* render the plan as a tree (PostgreSQL JSON plans, MySQL JSON / ANALYZE, SQLite query plan)
+- Saved queries with names, and a command palette (`Ctrl+K`) that opens any table, query or action by name
 - `Ctrl+Enter` runs the selection or everything; several statements per run, one result set per
   statement, messages with row counts and timings
 - Cancel a running statement, cap the row count, browse the history panel
@@ -74,6 +86,10 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 - Columns with types, nullability, defaults and comments; indexes; foreign keys you can click to
   open the referenced table; `SHOW CREATE TABLE` on MySQL
+- Create tables, add / alter / drop columns, create indexes, rename, truncate and drop, always with
+  the generated DDL shown before it runs
+- Import a CSV into an existing or a new table (delimiter and header detection, batched inserts in
+  one transaction)
 
 **Redis**
 
@@ -81,10 +97,14 @@ the shell is Tauri 2, and the interface is React with its own identity.
 - Value editor for strings, hashes, lists, sets, sorted sets and streams, with paging for big
   collections; TTL, rename and delete
 - Console for any command with the reply shown as JSON; `INFO` dashboard
+- Tools tab: slow log, memory usage grouped by key prefix, and a pub/sub monitor with publish
 
 **Everywhere**
 
-- Interface in English and Brazilian Portuguese; dark, light or follow-the-system theme
+- Interface in English and Brazilian Portuguese; dark, light or follow-the-system theme, plus
+  JSON themes dropped into the themes folder (live reload, export the current one as a starting point)
+- Numbers and dates in grids follow the locale you pick; copying and editing keep the raw value
+- Drag tabs to reorder them; every visible string is translatable
 - Signed in-app updates on Windows, macOS and Linux
 
 ## Databases
@@ -92,9 +112,10 @@ the shell is Tauri 2, and the interface is React with its own identity.
 | Engine | Driver | Status |
 | --- | --- | --- |
 | PostgreSQL 12+ | `tokio-postgres` (text protocol for results, extended for the catalog) | supported |
-| MySQL 8 / MariaDB 10+ | `mysql_async` (small pool, text protocol) | supported |
+| MySQL 8 / MariaDB 10+ | `mysql_async` (small pool, text protocol) | supported, tested on MySQL 8.4 and MariaDB 11 |
 | Redis 6+ | `redis` (`ConnectionManager`, RESP2/3) | supported |
-| SQLite, SQL Server, MongoDB, ClickHouse, DuckDB | — | planned |
+| SQLite 3 | `rusqlite` (bundled) | supported |
+| SQL Server, MongoDB, ClickHouse, DuckDB | — | planned |
 
 TLS uses `rustls`. *Prefer* and *Require* encrypt without checking the certificate (what most
 clients do); *Verify* checks it against the operating system's trust store.
@@ -183,8 +204,8 @@ npm run release -- 0.2.0   # bump versions, tag v0.2.0 and push (CI builds and p
 | --- | --- | --- |
 | Frontend types | `npx tsc --noEmit` | strict TypeScript over `src/` |
 | Rust unit | `cargo test --manifest-path src-tauri/Cargo.toml` | SQL generation, quoting, console parsing |
-| Drivers (live servers) | `OSPREY_TEST_PG=… OSPREY_TEST_MYSQL=… OSPREY_TEST_REDIS=… cargo test --manifest-path src-tauri/Cargo.toml --test drivers -- --ignored` | catalog, paging, edits in a transaction, multi-statement, cancel, Redis types |
-| UI (Playwright) | `npm run test:e2e` | dialogs, sidebar tree, grid editing and SQL preview, query editor, Redis views, settings |
+| Drivers (live servers) | `OSPREY_TEST_PG=… OSPREY_TEST_MYSQL=… OSPREY_TEST_REDIS=… OSPREY_TEST_SSH=… cargo test --manifest-path src-tauri/Cargo.toml --test drivers -- --ignored` | catalog, paging, edits in a transaction, multi-statement, cancel, Redis types, slow log / memory / pub/sub, SSH tunnel; the SQLite case runs without any server |
+| UI (Playwright) | `npm run test:e2e` | 20 specs: dialogs, context menus, grid editing and SQL preview, query editor, EXPLAIN, DDL editor, CSV import, Redis views and tools, JSON themes, drag-and-drop, locale formatting, settings |
 
 The UI suite runs in Chromium against the Vite dev server with an in-memory stand-in for the
 Rust backend (`src/dev/tauriMock.ts`, enabled by opening the app with `?mock=1`), so it needs
@@ -203,14 +224,18 @@ Linux). *Settings → Data → Open folder* takes you there.
 - [x] Structure view (columns, indexes, foreign keys, DDL)
 - [x] Redis browser, value editors, console, INFO
 - [x] Signed auto-update for Windows, macOS and Linux
-- [ ] SSH tunnels
-- [ ] Command palette (open any table by name)
-- [ ] Saved queries
-- [ ] Table and column editing (DDL with preview)
-- [ ] Visual EXPLAIN
-- [ ] CSV import
-- [ ] SQLite, SQL Server, MongoDB, ClickHouse
-- [ ] JSON themes
+- [x] SSH tunnels
+- [x] Command palette (open any table by name)
+- [x] Saved queries
+- [x] Table and column editing (DDL with preview)
+- [x] Visual EXPLAIN
+- [x] CSV import
+- [x] SQLite
+- [x] Redis slow log, memory by prefix, pub/sub
+- [x] JSON themes
+- [ ] Streaming of very large results
+- [ ] SQL Server, MongoDB, ClickHouse, DuckDB
+- [ ] ER diagram
 
 ## Contributing
 

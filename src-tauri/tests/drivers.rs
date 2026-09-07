@@ -295,7 +295,12 @@ async fn mysql_end_to_end() {
     assert_eq!(set.columns.iter().find(|c| c.name == "active").unwrap().kind, ColumnKind::Bool);
     assert!(cell(&set, 0, "born").as_str().unwrap().len() == 10, "date only: {:?}", cell(&set, 0, "born"));
     assert_eq!(set.columns.iter().find(|c| c.name == "blob_").unwrap().kind, ColumnKind::Bytes);
-    assert_eq!(set.columns.iter().find(|c| c.name == "meta").unwrap().kind, ColumnKind::Json);
+    // MariaDB has no JSON wire type (it is LONGTEXT with a check), so results say string there
+    let maria = info.version.contains("MariaDB");
+    let meta_kind = set.columns.iter().find(|c| c.name == "meta").unwrap().kind;
+    assert!(meta_kind == ColumnKind::Json || (maria && meta_kind == ColumnKind::String), "{meta_kind:?}");
+    let cols = d.columns("osprey_t", "people").await.unwrap();
+    assert_eq!(cols.iter().find(|c| c.name == "meta").unwrap().data_type, "json");
     let n = d.query(&dialect.select_count(&req).unwrap(), 1).await.unwrap().pop().unwrap().rows[0][0].clone();
     assert!(n.as_i64().unwrap() > 20, "{n}");
 

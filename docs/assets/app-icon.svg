@@ -1,39 +1,51 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1b2a38"/>
-      <stop offset="1" stop-color="#0d151d"/>
+      <stop offset="0" stop-color="#1c2d3d"/>
+      <stop offset="1" stop-color="#0b1219"/>
     </linearGradient>
     <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6fd0f5"/>
-      <stop offset="1" stop-color="#2aa7d8"/>
+      <stop offset="0" stop-color="#8ee3ff"/>
+      <stop offset="1" stop-color="#22a3d6"/>
+    </linearGradient>
+    <linearGradient id="white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7fbff"/>
+      <stop offset="1" stop-color="#d6e6f2"/>
     </linearGradient>
     <linearGradient id="amber" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffc766"/>
-      <stop offset="1" stop-color="#f0a030"/>
+      <stop offset="0" stop-color="#ffcf70"/>
+      <stop offset="1" stop-color="#f29b2a"/>
     </linearGradient>
+    <radialGradient id="glow" cx="0.55" cy="0.35" r="0.6">
+      <stop offset="0" stop-color="#37b7e6" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#37b7e6" stop-opacity="0"/>
+    </radialGradient>
   </defs>
+
   <!-- tile -->
-  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
-  <!-- grid: three rows of "data" -->
-  <g fill="#ffffff" fill-opacity="0.10">
-    <rect x="200" y="640" width="624" height="56" rx="28"/>
-    <rect x="200" y="740" width="624" height="56" rx="28"/>
+  <rect x="64" y="64" width="896" height="896" rx="216" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="216" fill="url(#glow)"/>
+
+  <!-- osprey head in profile, facing right: white head, dark eye stripe, hooked beak -->
+  <g transform="translate(20 0)">
+    <!-- neck / shoulders -->
+    <path d="M300 720 C 300 560, 340 470, 440 420 L 560 400 C 640 400, 700 440, 720 520 L 700 720 Z" fill="url(#sky)"/>
+    <!-- head -->
+    <path d="M330 470 C 330 330, 420 250, 540 250 C 640 250, 720 320, 730 420 L 740 470 C 740 520, 700 560, 640 560 L 430 560 C 370 560, 330 520, 330 470 Z" fill="url(#white)"/>
+    <!-- the osprey's dark stripe through the eye -->
+    <path d="M430 372 C 500 340, 620 345, 760 395 L 776 430 C 640 392, 520 388, 440 412 Z" fill="#0b1219" fill-opacity="0.9"/>
+    <!-- eye -->
+    <circle cx="612" cy="392" r="30" fill="url(#amber)"/>
+    <circle cx="622" cy="386" r="10" fill="#0b1219"/>
+    <!-- hooked beak -->
+    <path d="M728 440 C 790 445, 830 470, 842 520 C 830 530, 810 528, 796 520 C 800 560, 790 600, 770 610 C 760 570, 740 540, 700 520 C 690 500, 700 460, 728 440 Z" fill="#0b1219"/>
+    <path d="M736 452 C 780 458, 810 478, 822 512 C 808 508, 792 506, 780 508 C 776 490, 760 470, 736 452 Z" fill="#26384a"/>
   </g>
-  <!-- osprey: wings spread, diving -->
-  <path d="M512 250
-           C 470 330, 380 380, 250 372
-           C 330 420, 420 440, 470 430
-           L 512 520
-           L 554 430
-           C 604 440, 694 420, 774 372
-           C 644 380, 554 330, 512 250 Z"
-        fill="url(#sky)"/>
-  <!-- eye / focus point -->
-  <circle cx="512" cy="360" r="34" fill="#0d151d"/>
-  <circle cx="512" cy="360" r="14" fill="url(#amber)"/>
-  <!-- the catch: highlighted row -->
-  <rect x="200" y="540" width="624" height="56" rx="28" fill="url(#amber)"/>
-  <rect x="236" y="558" width="140" height="20" rx="10" fill="#0d151d" fill-opacity="0.55"/>
-  <rect x="404" y="558" width="240" height="20" rx="10" fill="#0d151d" fill-opacity="0.35"/>
+
+  <!-- the catch: a highlighted data row -->
+  <rect x="236" y="736" width="552" height="60" rx="30" fill="url(#amber)"/>
+  <rect x="268" y="756" width="120" height="20" rx="10" fill="#0b1219" fill-opacity="0.5"/>
+  <rect x="412" y="756" width="220" height="20" rx="10" fill="#0b1219" fill-opacity="0.32"/>
+  <rect x="656" y="756" width="100" height="20" rx="10" fill="#0b1219" fill-opacity="0.32"/>
+  <rect x="236" y="828" width="552" height="40" rx="20" fill="#ffffff" fill-opacity="0.09"/>
 </svg>
