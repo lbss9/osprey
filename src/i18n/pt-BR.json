@@ -158,7 +158,9 @@
     "sqliteCreate": "Criar o arquivo se não existir",
     "sqliteCreateHint": "Desligado: conectar num caminho inexistente dá erro",
     "clickhouse": "ClickHouse",
-    "clickhouseHint": "Interface HTTP (8123, ou 8443 com TLS). Bancos fazem o papel de schema; não há transações."
+    "clickhouseHint": "Interface HTTP (8123, ou 8443 com TLS). Bancos fazem o papel de schema; não há transações.",
+    "mssql": "SQL Server",
+    "mssqlHint": "TDS 7.3+ (SQL Server 2008 em diante, Azure SQL). A criptografia segue a opção SSL; scripts podem usar GO."
   },
   "tabs": {
     "query": "Consulta",

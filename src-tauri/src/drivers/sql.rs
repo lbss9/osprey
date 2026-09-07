@@ -13,6 +13,7 @@ pub enum Dialect {
     Mysql,
     Sqlite,
     Clickhouse,
+    Mssql,
 }
 
 impl Dialect {
@@ -20,12 +21,14 @@ impl Dialect {
         match self {
             Dialect::Postgres | Dialect::Sqlite => format!("\"{}\"", name.replace('"', "\"\"")),
             Dialect::Mysql | Dialect::Clickhouse => format!("`{}`", name.replace('`', "``")),
+            Dialect::Mssql => format!("[{}]", name.replace(']', "]]")),
         }
     }
 
     pub fn quote_literal(&self, s: &str) -> String {
         match self {
             Dialect::Sqlite => format!("'{}'", s.replace('\'', "''")),
+            Dialect::Mssql => format!("N'{}'", s.replace('\'', "''")),
             Dialect::Postgres => {
                 if s.contains('\\') {
                     // E'' strings interpret backslashes; escape them so the value is exact
@@ -66,13 +69,10 @@ impl Dialect {
     pub fn literal(&self, v: &Value) -> String {
         match v {
             Value::Null => "NULL".into(),
-            Value::Bool(b) => {
-                if *b {
-                    "TRUE".into()
-                } else {
-                    "FALSE".into()
-                }
-            }
+            Value::Bool(b) => match self {
+                Dialect::Mssql => if *b { "1".into() } else { "0".into() },
+                _ => if *b { "TRUE".into() } else { "FALSE".into() },
+            },
             Value::Number(n) => n.to_string(),
             Value::String(s) => self.quote_literal(s),
             Value::Object(o) if o.get("$default").and_then(|d| d.as_bool()) == Some(true) => {
@@ -88,6 +88,7 @@ impl Dialect {
             Dialect::Mysql => self.quote_ident(col),
             Dialect::Sqlite => format!("CAST({} AS TEXT)", self.quote_ident(col)),
             Dialect::Clickhouse => format!("toString({})", self.quote_ident(col)),
+            Dialect::Mssql => format!("CAST({} AS NVARCHAR(MAX))", self.quote_ident(col)),
         }
     }
 
@@ -95,12 +96,18 @@ impl Dialect {
         match self {
             Dialect::Postgres | Dialect::Clickhouse => "ILIKE",
             // MySQL collations and SQLite's LIKE are case-insensitive for ASCII already
-            Dialect::Mysql | Dialect::Sqlite => "LIKE",
+            // MySQL collations and SQLite's LIKE are case-insensitive for ASCII already;
+            // SQL Server follows the column collation (case-insensitive by default)
+            Dialect::Mysql | Dialect::Sqlite | Dialect::Mssql => "LIKE",
         }
     }
 
     fn escape_like(&self, s: &str) -> String {
-        s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+        match self {
+            // T-SQL has no default escape character; brackets quote wildcards
+            Dialect::Mssql => s.replace('[', "[[]").replace('%', "[%]").replace('_', "[_]"),
+            _ => s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"),
+        }
     }
 
     pub fn filter_clause(&self, f: &TableFilter) -> AppResult<String> {
@@ -175,7 +182,16 @@ impl Dialect {
                 if s.desc { "DESC" } else { "ASC" }
             ));
         }
-        sql.push_str(&format!(" LIMIT {} OFFSET {}", req.limit, req.offset));
+        match self {
+            Dialect::Mssql => {
+                // OFFSET/FETCH needs an ORDER BY
+                if req.sort.is_none() {
+                    sql.push_str(" ORDER BY (SELECT NULL)");
+                }
+                sql.push_str(&format!(" OFFSET {} ROWS FETCH NEXT {} ROWS ONLY", req.offset, req.limit));
+            }
+            _ => sql.push_str(&format!(" LIMIT {} OFFSET {}", req.limit, req.offset)),
+        }
         Ok(sql)
     }
 
@@ -231,7 +247,7 @@ impl Dialect {
                     let vals: Vec<String> = values.values().map(|v| self.literal(v)).collect();
                     if cols.is_empty() {
                         out.push(match self {
-                            Dialect::Postgres | Dialect::Sqlite => format!("INSERT INTO {target} DEFAULT VALUES"),
+                            Dialect::Postgres | Dialect::Sqlite | Dialect::Mssql => format!("INSERT INTO {target} DEFAULT VALUES"),
                             Dialect::Mysql => format!("INSERT INTO {target} () VALUES ()"),
                             Dialect::Clickhouse => return Err(AppError::Unsupported("ClickHouse needs at least one value to insert".into())),
                         });
@@ -274,6 +290,12 @@ impl Dialect {
             }
             Dialect::Sqlite => {
                 parts.push(if c.auto_increment { "INTEGER".into() } else { ty.to_string() });
+            }
+            Dialect::Mssql => {
+                parts.push(ty.to_string());
+                if c.auto_increment {
+                    parts.push("IDENTITY(1,1)".into());
+                }
             }
             Dialect::Clickhouse => {
                 // types are NOT NULL by default; nullability is part of the type
@@ -322,9 +344,11 @@ impl Dialect {
                     _ => vec![format!("CREATE TABLE {} (\n  {}\n)", self.qualified(schema, table), defs.join(",\n  "))],
                 }
             }
-            DdlOp::AddColumn { schema, table, column } => {
-                vec![format!("ALTER TABLE {} ADD COLUMN {}", self.qualified(schema, table), self.column_def(column, true))]
-            }
+            DdlOp::AddColumn { schema, table, column } => match self {
+                // T-SQL has no COLUMN keyword here
+                Dialect::Mssql => vec![format!("ALTER TABLE {} ADD {}", self.qualified(schema, table), self.column_def(column, true))],
+                _ => vec![format!("ALTER TABLE {} ADD COLUMN {}", self.qualified(schema, table), self.column_def(column, true))],
+            },
             DdlOp::AlterColumn { schema, table, name, new_name, data_type, nullable, set_default, default } => {
                 let target = self.qualified(schema, table);
                 let col = self.quote_ident(name);
@@ -365,6 +389,19 @@ impl Dialect {
                             return Err(AppError::Unsupported("SQLite cannot change a column's type, nullability or default in place; create a new table and copy the data".into()));
                         }
                     }
+                    Dialect::Mssql => {
+                        if *set_default {
+                            return Err(AppError::Unsupported("SQL Server keeps defaults in named constraints; change them in a query (ALTER TABLE … ADD CONSTRAINT … DEFAULT)".into()));
+                        }
+                        if data_type.is_some() || nullable.is_some() {
+                            let t = data_type.as_deref().map(str::trim).filter(|t| !t.is_empty()).ok_or_else(|| AppError::Unsupported("SQL Server needs the column type to change nullability".into()))?;
+                            out.push(format!("ALTER TABLE {target} ALTER COLUMN {col} {t} {}", if nullable == &Some(false) { "NOT NULL" } else { "NULL" }));
+                        }
+                        if let Some(n) = new_name.as_deref().map(str::trim).filter(|n| !n.is_empty() && *n != name) {
+                            out.push(format!("EXEC sp_rename {}, {}, 'COLUMN'", self.quote_literal(&format!("{schema}.{table}.{name}")), self.quote_literal(n)));
+                            return Ok(out);
+                        }
+                    }
                     Dialect::Clickhouse => {
                         if data_type.is_some() || nullable.is_some() || *set_default {
                             let t = data_type.as_deref().map(str::trim).filter(|t| !t.is_empty()).ok_or_else(|| AppError::Unsupported("ClickHouse needs the column type to change nullability or default".into()))?;
@@ -389,6 +426,7 @@ impl Dialect {
             }
             DdlOp::RenameTable { schema, table, new_name } => match self {
                 Dialect::Clickhouse => vec![format!("RENAME TABLE {} TO {}", self.qualified(schema, table), self.qualified(schema, new_name))],
+                Dialect::Mssql => vec![format!("EXEC sp_rename {}, {}", self.quote_literal(&format!("{schema}.{table}")), self.quote_literal(new_name))],
                 _ => vec![format!("ALTER TABLE {} RENAME TO {}", self.qualified(schema, table), self.quote_ident(new_name))],
             },
             DdlOp::CreateIndex { schema, table, name, columns, unique } => {
@@ -410,6 +448,7 @@ impl Dialect {
                 Dialect::Mysql => vec![format!("DROP INDEX {} ON {}", self.quote_ident(name), self.qualified(schema, table))],
                 Dialect::Sqlite => vec![format!("DROP INDEX {}", self.qualified(schema, name))],
                 Dialect::Clickhouse => vec![format!("ALTER TABLE {} DROP INDEX {}", self.qualified(schema, table), self.quote_ident(name))],
+                Dialect::Mssql => vec![format!("DROP INDEX {} ON {}", self.quote_ident(name), self.qualified(schema, table))],
             },
             DdlOp::DropTable { schema, table } => vec![format!("DROP TABLE {}", self.qualified(schema, table))],
             DdlOp::TruncateTable { schema, table } => match self {
@@ -482,6 +521,19 @@ mod tests {
         assert!(Dialect::Sqlite.ddl(&op).is_err());
         let rename_only = DdlOp::AlterColumn { schema: "main".into(), table: "t".into(), name: "a".into(), new_name: Some("b".into()), data_type: None, nullable: None, set_default: false, default: None };
         assert_eq!(Dialect::Sqlite.ddl(&rename_only).unwrap(), vec!["ALTER TABLE \"main\".\"t\" RENAME COLUMN \"a\" TO \"b\""]);
+    }
+
+    #[test]
+    fn mssql_dialect() {
+        let d = Dialect::Mssql;
+        assert_eq!(d.quote_ident("a]b"), "[a]]b]");
+        assert_eq!(d.quote_literal("it's"), "N'it''s'");
+        let req = page(vec![TableFilter { column: "name".into(), op: "contains".into(), value: Some("50%".into()) }], None);
+        assert_eq!(d.select_page(&req).unwrap(), "SELECT * FROM [public].[users] WHERE CAST([name] AS NVARCHAR(MAX)) LIKE N'%50[%]%' ORDER BY (SELECT NULL) OFFSET 200 ROWS FETCH NEXT 100 ROWS ONLY");
+        let op = DdlOp::CreateTable { schema: "dbo".into(), table: "t".into(), columns: vec![{ let mut c = col("id", "int"); c.primary_key = true; c.auto_increment = true; c }, col("name", "nvarchar(50)")] };
+        assert_eq!(d.ddl(&op).unwrap()[0], "CREATE TABLE [dbo].[t] (\n  [id] int IDENTITY(1,1) PRIMARY KEY,\n  [name] nvarchar(50)\n)");
+        assert_eq!(d.ddl(&DdlOp::RenameTable { schema: "dbo".into(), table: "t".into(), new_name: "u".into() }).unwrap()[0], "EXEC sp_rename N'dbo.t', N'u'");
+        assert_eq!(d.literal(&json!(true)), "1");
     }
 
     #[test]

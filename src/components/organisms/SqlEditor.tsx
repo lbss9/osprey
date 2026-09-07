@@ -13,7 +13,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
-import { sql, PostgreSQL, MySQL, type SQLNamespace } from "@codemirror/lang-sql";
+import { sql, PostgreSQL, MySQL, MSSQL, type SQLNamespace } from "@codemirror/lang-sql";
 import { tags } from "@lezer/highlight";
 import type { DriverKind } from "@/types";
 
@@ -64,7 +64,7 @@ const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(function SqlEditor
 
   const langExt = () =>
     sql({
-      dialect: p.driver === "mysql" || p.driver === "clickhouse" ? MySQL : PostgreSQL,
+      dialect: p.driver === "mysql" || p.driver === "clickhouse" ? MySQL : p.driver === "mssql" ? MSSQL : PostgreSQL,
       schema: p.schema,
       defaultSchema: p.defaultSchema,
       upperCaseKeywords: true,

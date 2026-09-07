@@ -3,7 +3,7 @@
  * Rust side serializes everything as camelCase.
  */
 
-export type DriverKind = "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse";
+export type DriverKind = "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse" | "mssql";
 export type SslMode = "disable" | "prefer" | "require" | "verify";
 
 export interface ConnectionConfig {

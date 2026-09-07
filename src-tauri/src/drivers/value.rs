@@ -323,3 +323,17 @@ pub fn clickhouse_kind(ty: &str) -> ColumnKind {
     }
     ColumnKind::Other
 }
+
+/// SQL Server type name (from the catalog) → kind.
+pub fn mssql_kind_from_name(ty: &str) -> ColumnKind {
+    let base = ty.trim().to_ascii_lowercase();
+    let base = base.split('(').next().unwrap_or("").trim();
+    match base {
+        "bit" => ColumnKind::Bool,
+        "tinyint" | "smallint" | "int" | "bigint" | "decimal" | "numeric" | "float" | "real" | "money" | "smallmoney" => ColumnKind::Number,
+        "date" | "datetime" | "datetime2" | "smalldatetime" | "datetimeoffset" | "time" => ColumnKind::Date,
+        "char" | "varchar" | "nchar" | "nvarchar" | "text" | "ntext" | "uniqueidentifier" | "xml" | "sysname" => ColumnKind::String,
+        "binary" | "varbinary" | "image" | "timestamp" | "rowversion" => ColumnKind::Bytes,
+        _ => ColumnKind::Other,
+    }
+}

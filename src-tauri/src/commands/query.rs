@@ -133,6 +133,35 @@ pub async fn query_explain(
             let plan: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text.clone()));
             Ok(ExplainResult { driver, plan, text: None })
         }
+        DriverKind::Mssql => {
+            // estimated plan as text: SHOWPLAN_ALL rows (StmtText, …, EstimateRows, TotalSubtreeCost)
+            s.query("SET SHOWPLAN_ALL ON", 1).await?;
+            let plan = s.query(body, HARD_MAX_ROWS).await;
+            let _ = s.query("SET SHOWPLAN_ALL OFF", 1).await;
+            let sets = plan?;
+            let mut lines = Vec::new();
+            for set in &sets {
+                let col = |name: &str| set.columns.iter().position(|c| c.name.eq_ignore_ascii_case(name));
+                let (Some(t), Some(id), Some(parent)) = (col("StmtText"), col("NodeId"), col("Parent")) else { continue };
+                let rows_i = col("EstimateRows");
+                let cost_i = col("TotalSubtreeCost");
+                // indent by depth (parent chain)
+                let parents: std::collections::HashMap<String, String> = set.rows.iter().map(|r| (r[id].to_string(), r[parent].to_string())).collect();
+                for r in &set.rows {
+                    let mut depth = 0;
+                    let mut cur = r[parent].to_string();
+                    while cur != "0" && parents.contains_key(&cur) && depth < 32 {
+                        depth += 1;
+                        cur = parents[&cur].clone();
+                    }
+                    let text = r[t].as_str().unwrap_or("").trim().to_string();
+                    let est = rows_i.and_then(|i| r[i].as_f64()).map(|v| format!("  rows≈{v:.0}")).unwrap_or_default();
+                    let cost = cost_i.and_then(|i| r[i].as_f64()).map(|v| format!("  cost={v:.4}")).unwrap_or_default();
+                    lines.push(format!("{}{text}{est}{cost}", "  ".repeat(depth)));
+                }
+            }
+            Ok(ExplainResult { driver, plan: serde_json::Value::Null, text: Some(lines.join("\n")) })
+        }
         DriverKind::Redis => Err(crate::error::AppError::Unsupported("explain".into()).into()),
     }
 }

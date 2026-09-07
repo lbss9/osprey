@@ -3,6 +3,7 @@
 //! entry point the commands use.
 
 pub mod clickhouse;
+pub mod mssql;
 pub mod mysql;
 pub mod postgres;
 pub mod redis;
@@ -153,6 +154,10 @@ async fn connect_direct(
         }
         DriverKind::Clickhouse => {
             let d = clickhouse::ClickhouseDriver::connect(config, password, database).await?;
+            Ok(Session::Sql(Arc::new(d)))
+        }
+        DriverKind::Mssql => {
+            let d = mssql::MssqlDriver::connect(config, password, database).await?;
             Ok(Session::Sql(Arc::new(d)))
         }
     }

@@ -34,6 +34,15 @@ jobs:
         ports: ["56379:6379"]
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Osprey!2026pass"
+          MSSQL_PID: Developer
+        ports: ["51433:1433"]
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Osprey!2026pass' -Q 'SELECT 1'" --health-interval 10s --health-timeout 5s --health-retries 30
       clickhouse:
         image: clickhouse/clickhouse-server:24.8
         env:
@@ -78,4 +87,5 @@ jobs:
           OSPREY_TEST_MYSQL: mysql://root:osprey@127.0.0.1:53306/demo
           OSPREY_TEST_REDIS: redis://127.0.0.1:56379/0
           OSPREY_TEST_CLICKHOUSE: http://default:osprey@127.0.0.1:58123/demo
+          OSPREY_TEST_MSSQL: mssql://sa:Osprey!2026pass@127.0.0.1:51433/master
         run: cargo test --manifest-path src-tauri/Cargo.toml --test drivers -- --ignored --test-threads=1

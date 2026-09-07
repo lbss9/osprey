@@ -1,4 +1,4 @@
-import type { Cell, ColumnKind, ResultColumn } from "@/types";
+import type { Cell, ColumnKind, DriverKind, ResultColumn } from "@/types";
 
 let currentLocale: string | undefined;
 let formatCells = true;
@@ -169,15 +169,16 @@ export function rowToCsv(row: Cell[]): string {
   return row.map((v) => csvEscape(cellText(v))).join(",");
 }
 
-export function sqlLiteral(v: Cell, driver: "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse"): string {
+export function sqlLiteral(v: Cell, driver: DriverKind): string {
   if (v === null || v === undefined) return "NULL";
   if (typeof v === "number") return String(v);
-  if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+  if (typeof v === "boolean") return driver === "mssql" ? (v ? "1" : "0") : v ? "TRUE" : "FALSE";
   const s = driver === "mysql" || driver === "clickhouse" ? v.replace(/\\/g, "\\\\").replace(/'/g, "''") : v.replace(/'/g, "''");
-  return `'${s}'`;
+  return driver === "mssql" ? `N'${s}'` : `'${s}'`;
 }
 
-export function quoteIdent(name: string, driver: "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse"): string {
+export function quoteIdent(name: string, driver: DriverKind): string {
+  if (driver === "mssql") return `[${name.replace(/]/g, "]]")}]`;
   return driver === "mysql" || driver === "clickhouse" ? `\`${name.replace(/`/g, "``")}\`` : `"${name.replace(/"/g, '""')}"`;
 }
 
@@ -185,7 +186,7 @@ export function rowToInsert(
   columns: ResultColumn[],
   row: Cell[],
   table: string,
-  driver: "postgres" | "mysql" | "redis" | "sqlite" | "clickhouse",
+  driver: DriverKind,
 ): string {
   const cols = columns.map((c) => quoteIdent(c.name, driver)).join(", ");
   const vals = row.map((v) => sqlLiteral(v, driver)).join(", ");
@@ -193,7 +194,7 @@ export function rowToInsert(
 }
 
 export function driverLabel(driver: string): string {
-  return driver === "postgres" ? "PostgreSQL" : driver === "mysql" ? "MySQL" : driver === "sqlite" ? "SQLite" : driver === "clickhouse" ? "ClickHouse" : "Redis";
+  return driver === "postgres" ? "PostgreSQL" : driver === "mysql" ? "MySQL" : driver === "sqlite" ? "SQLite" : driver === "clickhouse" ? "ClickHouse" : driver === "mssql" ? "SQL Server" : "Redis";
 }
 
 export const isMac = /Mac/i.test(navigator.userAgent);

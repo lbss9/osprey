@@ -54,7 +54,7 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 **Connections**
 
-- PostgreSQL, MySQL/MariaDB, Redis, SQLite and ClickHouse with one dialog: host, port, user,
+- PostgreSQL, MySQL/MariaDB, Redis, SQLite, ClickHouse and SQL Server with one dialog: host, port, user,
   password, database, TLS mode (off / prefer / require / verify), colour, group and read-only flag
 - SSH tunnel per connection (password or private key), opened before the driver connects
 - *Test* connects once and shows the server version before you save
@@ -120,7 +120,8 @@ the shell is Tauri 2, and the interface is React with its own identity.
 | Redis 6+ | `redis` (`ConnectionManager`, RESP2/3) | supported |
 | SQLite 3 | `rusqlite` (bundled) | supported |
 | ClickHouse 22.8+ | HTTP interface via `reqwest` (JSONCompact) | supported |
-| SQL Server, MongoDB, DuckDB | — | planned |
+| SQL Server 2008+ / Azure SQL | `tiberius` (TDS, rustls) | supported |
+| MongoDB, DuckDB | — | planned |
 
 TLS uses `rustls`. *Prefer* and *Require* encrypt without checking the certificate (what most
 clients do); *Verify* checks it against the operating system's trust store.
@@ -242,7 +243,8 @@ Linux). *Settings → Data → Open folder* takes you there.
 - [x] JSON themes
 - [x] Streaming of very large results
 - [x] ClickHouse
-- [ ] SQL Server, MongoDB, DuckDB
+- [x] SQL Server
+- [ ] MongoDB, DuckDB
 - [x] ER diagram
 
 ## Contributing

@@ -868,3 +868,128 @@ async fn clickhouse_end_to_end() {
     assert!(d.columns("demo", "people").await.unwrap().iter().any(|c| c.name == "note" && c.data_type == "Nullable(String)"));
     d.execute_transaction(&dialect.ddl(&DdlOp::DropTable { schema: "demo".into(), table: "people".into() }).unwrap()).await.unwrap();
 }
+
+#[tokio::test]
+#[ignore]
+async fn mssql_end_to_end() {
+    drivers::init_crypto();
+    let Some(d) = sql_session("OSPREY_TEST_MSSQL", DriverKind::Mssql).await else {
+        eprintln!("OSPREY_TEST_MSSQL not set; skipping");
+        return;
+    };
+    let dialect = Dialect::Mssql;
+    let info = d.server_info().await.unwrap();
+    println!("mssql {} db={:?} user={:?}", info.version, info.database, info.user);
+
+    d.query("IF OBJECT_ID('osprey_t.orders') IS NOT NULL DROP TABLE osprey_t.orders; IF OBJECT_ID('osprey_t.people') IS NOT NULL DROP TABLE osprey_t.people; IF SCHEMA_ID('osprey_t') IS NULL EXEC('CREATE SCHEMA osprey_t')", 10).await.unwrap();
+    d.execute_transaction(&[
+        "CREATE TABLE osprey_t.people (id INT IDENTITY(1,1) PRIMARY KEY, name NVARCHAR(100) NOT NULL, age INT NULL, score DECIMAL(8,2), active BIT DEFAULT 1, born DATE, seen DATETIME2(3), uid UNIQUEIDENTIFIER DEFAULT NEWID(), blob VARBINARY(MAX), note NVARCHAR(MAX))".into(),
+        "CREATE TABLE osprey_t.orders (id BIGINT IDENTITY(1,1) PRIMARY KEY, person_id INT NOT NULL, total DECIMAL(10,2), CONSTRAINT fk_person FOREIGN KEY (person_id) REFERENCES osprey_t.people(id) ON DELETE CASCADE)".into(),
+        "CREATE INDEX orders_person_idx ON osprey_t.orders (person_id)".into(),
+        "EXEC sys.sp_addextendedproperty @name = N'MS_Description', @value = N'test people', @level0type = N'SCHEMA', @level0name = N'osprey_t', @level1type = N'TABLE', @level1name = N'people'".into(),
+    ])
+    .await
+    .unwrap();
+    d.query(";WITH n AS (SELECT 1 AS x UNION ALL SELECT x + 1 FROM n WHERE x < 900) INSERT INTO osprey_t.people (name, age, score, active, born, seen, blob) SELECT CONCAT('person ', x), IIF(x % 7 = 0, NULL, 20 + x % 50), x / 3.0, x % 2, DATEADD(day, x % 28, '2024-01-01'), DATEADD(second, x, '2024-01-01T10:00:00'), 0x0102 FROM n OPTION (MAXRECURSION 1000)", 10).await.unwrap();
+
+    let dbs = d.list_databases(false).await.unwrap();
+    assert!(!dbs.contains(&"tempdb".to_string()));
+    assert!(d.list_databases(true).await.unwrap().contains(&"master".to_string()));
+    let schemas = d.list_schemas(false).await.unwrap();
+    assert_eq!(schemas[0], "dbo");
+    assert!(schemas.contains(&"osprey_t".to_string()) && !schemas.contains(&"sys".to_string()));
+    let tables = d.list_tables("osprey_t").await.unwrap();
+    let t = tables.iter().find(|t| t.name == "people").expect("people listed");
+    assert_eq!(t.row_estimate, Some(900));
+    assert_eq!(t.comment.as_deref(), Some("test people"));
+    let cols = d.columns("osprey_t", "people").await.unwrap();
+    assert_eq!(cols.len(), 10);
+    assert!(cols[0].primary_key && cols[0].auto_increment && !cols[0].nullable);
+    assert_eq!(cols[1].data_type, "nvarchar(100)");
+    assert_eq!(cols[3].data_type, "decimal(8,2)");
+    assert_eq!(cols[4].default.as_deref(), Some("1"));
+    let st = d.structure("osprey_t", "orders").await.unwrap();
+    assert!(st.indexes.iter().any(|i| i.primary));
+    assert!(st.indexes.iter().any(|i| i.name == "orders_person_idx" && i.columns == vec!["person_id".to_string()]));
+    let fk = &st.foreign_keys[0];
+    assert!(fk.name == "fk_person" && fk.ref_table == "people" && fk.ref_schema == "osprey_t" && fk.on_delete.as_deref() == Some("CASCADE"), "{fk:?}");
+    let all = d.schema_columns("osprey_t").await.unwrap();
+    assert_eq!(all.len(), 2);
+
+    let req = page(
+        "osprey_t",
+        "people",
+        vec![TableFilter { column: "name".into(), op: "starts".into(), value: Some("person 1".into()) }],
+        Some(SortSpec { column: "age".into(), desc: true }),
+        20,
+        0,
+    );
+    let set = d.query(&dialect.select_page(&req).unwrap(), 20).await.unwrap().pop().unwrap();
+    assert_eq!(set.rows.len(), 20);
+    assert_eq!(set.columns.iter().find(|c| c.name == "id").unwrap().kind, ColumnKind::Number);
+    assert!(cell(&set, 0, "id").is_number());
+    assert_eq!(set.columns.iter().find(|c| c.name == "active").unwrap().kind, ColumnKind::Bool);
+    assert!(cell(&set, 0, "active").is_boolean());
+    assert!(cell(&set, 0, "born").as_str().unwrap().len() == 10, "date only: {:?}", cell(&set, 0, "born"));
+    assert!(cell(&set, 0, "seen").as_str().unwrap().starts_with("2024-01-01 10:"), "{:?}", cell(&set, 0, "seen"));
+    assert_eq!(set.columns.iter().find(|c| c.name == "blob").unwrap().kind, ColumnKind::Bytes);
+    assert_eq!(cell(&set, 0, "blob"), &json!("0x0102"));
+    assert!(cell(&set, 0, "score").is_number(), "{:?}", cell(&set, 0, "score"));
+    assert_eq!(cell(&set, 0, "uid").as_str().unwrap().len(), 36);
+    let n = d.query(&dialect.select_count(&req).unwrap(), 1).await.unwrap().pop().unwrap().rows[0][0].clone();
+    assert!(n.as_i64().unwrap() > 20, "{n}");
+
+    // edits in one transaction; a failing statement rolls everything back
+    let mut key = serde_json::Map::new();
+    key.insert("id".into(), json!(5));
+    let mut set_ = serde_json::Map::new();
+    set_.insert("name".into(), json!("it's renamed"));
+    let mut key2 = serde_json::Map::new();
+    key2.insert("id".into(), json!(6));
+    let mut vals = serde_json::Map::new();
+    vals.insert("name".into(), json!("new one"));
+    vals.insert("active".into(), json!(false));
+    let changes = ApplyChangesRequest {
+        schema: "osprey_t".into(),
+        table: "people".into(),
+        changes: vec![RowChange::Update { key: key.clone(), set: set_ }, RowChange::Delete { key: key2 }, RowChange::Insert { values: vals }],
+        preview: false,
+    };
+    let affected = d.execute_transaction(&dialect.changes(&changes).unwrap()).await.unwrap();
+    assert_eq!(affected, 3);
+    let check = d.query("SELECT name, active FROM osprey_t.people WHERE id IN (5, 6) OR name = 'new one' ORDER BY id", 10).await.unwrap().pop().unwrap();
+    assert_eq!(check.rows.len(), 2);
+    assert_eq!(check.rows[0][0], json!("it's renamed"));
+    assert_eq!(check.rows[1][1], json!(false));
+    let err = d.execute_transaction(&["UPDATE osprey_t.people SET age = 1 WHERE id = 7".into(), "UPDATE osprey_t.nope SET x = 1".into()]).await.unwrap_err();
+    assert!(matches!(err, osprey_lib::error::AppError::Query(_)), "{err:?}");
+    let age = d.query("SELECT age FROM osprey_t.people WHERE id = 7", 1).await.unwrap().pop().unwrap().rows[0][0].clone();
+    assert_ne!(age, json!(1), "rolled back");
+
+    // multi-statement with GO, affected counts, truncation, streaming
+    let sets = d.query("SELECT 1 AS a\nGO\nUPDATE osprey_t.people SET age = age WHERE id < 3; SELECT id FROM osprey_t.people", 100).await.unwrap();
+    assert_eq!(sets.len(), 3);
+    assert_eq!(sets[1].affected, Some(2));
+    assert!(sets[2].truncated && sets[2].rows.len() == 100);
+    let (sink, got) = collecting_sink();
+    let sets = d.query_with("SELECT id FROM osprey_t.people", 5000, Some(sink)).await.unwrap();
+    assert!(sets[0].streamed && sets[0].row_count == 900);
+    assert_eq!(got.lock().unwrap().iter().map(|b| b.rows.len()).sum::<usize>(), 900);
+
+    // cancel a long statement from a second connection
+    let d2 = d.clone();
+    let waiter = tokio::spawn(async move { d2.query("WAITFOR DELAY '00:00:20'", 1).await });
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let t0 = std::time::Instant::now();
+    d.cancel().await.unwrap();
+    let res = waiter.await.unwrap();
+    assert!(res.is_err(), "cancelled statement must fail");
+    assert!(t0.elapsed() < Duration::from_secs(5));
+
+    // DDL
+    d.execute_transaction(&dialect.ddl(&DdlOp::AddColumn { schema: "osprey_t".into(), table: "people".into(), column: DdlColumn { name: "note2".into(), data_type: "nvarchar(20)".into(), nullable: true, primary_key: false, auto_increment: false, default: None } }).unwrap()).await.unwrap();
+    d.execute_transaction(&dialect.ddl(&DdlOp::AlterColumn { schema: "osprey_t".into(), table: "people".into(), name: "note2".into(), new_name: Some("note3".into()), data_type: None, nullable: None, set_default: false, default: None }).unwrap()).await.unwrap();
+    assert!(d.columns("osprey_t", "people").await.unwrap().iter().any(|c| c.name == "note3"));
+    d.execute_transaction(&["DROP TABLE osprey_t.orders".into(), "DROP TABLE osprey_t.people".into()]).await.unwrap();
+}
+

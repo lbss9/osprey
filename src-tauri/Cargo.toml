@@ -50,6 +50,8 @@ rustls-native-certs = "0.8"
 russh = { version = "0.63", default-features = false, features = ["ring", "rsa"] }
 csv = "1"
 notify = "8"
+tiberius = { version = "0.12", default-features = false, features = ["tds73", "rustls", "chrono"] }
+tokio-util = { version = "0.7", features = ["compat"] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json", "query"] }
 
 # values
