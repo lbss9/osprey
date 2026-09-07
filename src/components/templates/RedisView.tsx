@@ -4,11 +4,11 @@ import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
 import Input from "@/components/atoms/Input";
-import Select from "@/components/atoms/Select";
+import Dropdown from "@/components/molecules/Dropdown";
+import ToolButton from "@/components/molecules/ToolButton";
 import Spinner from "@/components/atoms/Spinner";
-import ContextMenu from "@/components/molecules/ContextMenu";
+import { useContextMenu } from "@/components/molecules/ContextMenu";
 import DataGrid from "@/components/organisms/DataGrid";
-import { useContextMenu } from "@/hooks/useContextMenu";
 import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
@@ -68,7 +68,7 @@ export default function RedisView({ tab }: { tab: Tab }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [listWidth] = useState(320);
-  const ctx = useContextMenu();
+  const { open: openMenu } = useContextMenu();
 
   const scan = useCallback(
     async (reset: boolean) => {
@@ -119,10 +119,10 @@ export default function RedisView({ tab }: { tab: Tab }) {
   };
 
   const keyContext = (e: React.MouseEvent, k: RedisKeyInfo) =>
-    ctx.open(e, [
-      { label: t("sidebar.copyName"), icon: "copy", action: () => void copyText(k.key) },
-      { sep: true },
-      { label: t("redis.deleteKey"), icon: "trash", danger: true, action: () => void deleteKeys([k.key]) },
+    openMenu(e, [
+      { label: t("sidebar.copyName"), icon: "copy", onSelect: () => void copyText(k.key) },
+      { separator: true },
+      { label: t("redis.deleteKey"), icon: "trash", danger: true, onSelect: () => void deleteKeys([k.key]) },
     ]);
 
   const renderKey = (k: RedisKeyInfo, depth: number, label?: string) => (
@@ -159,8 +159,8 @@ export default function RedisView({ tab }: { tab: Tab }) {
             })
           }
           onContextMenu={(e) =>
-            ctx.open(e, [
-              { label: `${t("common.delete")} ${f.path}:* (${f.count})`, icon: "trash", danger: true, action: () => void deleteKeys(collect(f)) },
+            openMenu(e, [
+              { label: `${t("common.delete")} ${f.path}:* (${f.count})`, icon: "trash", danger: true, onSelect: () => void deleteKeys(collect(f)) },
             ])
           }
         >
@@ -191,10 +191,8 @@ export default function RedisView({ tab }: { tab: Tab }) {
             onChange={(e) => setPattern(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void scan(true)}
           />
-          <Select small value={typeFilter} options={TYPES.map((ty) => ({ value: ty, label: ty || t("redis.allTypes") }))} onChange={(v) => setTypeFilter(v)} />
-          <Button size="sm" icon variant="primary" onClick={() => void scan(true)} title={t("redis.scan")} disabled={loading}>
-            <Icon name="search" size={14} />
-          </Button>
+          <Dropdown size="sm" className="type-dd" value={typeFilter} options={TYPES.map((ty) => ({ value: ty, label: ty || t("redis.allTypes") }))} onChange={(v) => setTypeFilter(v)} ariaLabel={t("common.type")} />
+          <ToolButton icon="search" title={t("redis.scan")} onClick={() => void scan(true)} busy={loading} className="scan-btn" />
         </div>
         <div className="list">
           {keys.length === 0 && !loading && <div className="tree-empty">{t("redis.noKeys")}</div>}
@@ -203,9 +201,7 @@ export default function RedisView({ tab }: { tab: Tab }) {
         <div className="foot">
           <span>{t("redis.loaded", { count: formatNumber(keys.length) })}</span>
           <span className="grow" />
-          <Button size="sm" icon active={tree} onClick={() => setUi({ redisTree: !tree })} title={tree ? t("redis.list") : t("redis.tree")}>
-            <Icon name={tree ? "tree" : "list"} size={13} />
-          </Button>
+          <ToolButton icon={tree ? "tree" : "list"} active={tree} title={tree ? t("redis.list") : t("redis.tree")} onClick={() => setUi({ redisTree: !tree })} />
           {!done && (
             <Button size="sm" variant="secondary" onClick={() => void scan(false)} disabled={loading}>
               {loading ? <Spinner /> : <Icon name="arrowDown" size={12} />} {t("redis.loadMore")}
@@ -234,7 +230,6 @@ export default function RedisView({ tab }: { tab: Tab }) {
           <div className="redis-empty">{t("redis.selectKey")}</div>
         )}
       </div>
-      <ContextMenu menu={ctx.menu} onClose={ctx.close} />
     </div>
   );
 }
@@ -453,23 +448,13 @@ function KeyPanel({
         </span>
         <Badge title={t("redis.ttl")}>{value.ttl < 0 ? t("redis.noExpiry") : t("redis.expiresIn", { time: formatTtl(value.ttl) })}</Badge>
         {!isString && <Badge>{t("redis.entries", { count: formatNumber(value.total) })}</Badge>}
-        <Button size="sm" onClick={() => void load()} title={t("common.refresh")}>
-          <Icon name="refresh" size={14} />
-        </Button>
-        <Button size="sm" onClick={() => void copyText(keyName)} title={t("sidebar.copyName")}>
-          <Icon name="copy" size={14} />
-        </Button>
+        <ToolButton icon="refresh" title={t("common.refresh")} onClick={() => void load()} />
+        <ToolButton icon="copy" title={t("sidebar.copyName")} onClick={() => void copyText(keyName)} />
         {!readOnly && (
           <>
-            <Button size="sm" onClick={() => void setTtl()} title={t("redis.setTtl")}>
-              <Icon name="history" size={14} />
-            </Button>
-            <Button size="sm" onClick={() => void rename()} title={t("redis.rename")}>
-              <Icon name="pencil" size={14} />
-            </Button>
-            <Button size="sm" variant="danger" onClick={() => void del()} title={t("redis.deleteKey")}>
-              <Icon name="trash" size={14} />
-            </Button>
+            <ToolButton icon="history" title={t("redis.setTtl")} onClick={() => void setTtl()} />
+            <ToolButton icon="pencil" title={t("redis.rename")} onClick={() => void rename()} />
+            <ToolButton icon="trash" title={t("redis.deleteKey")} danger onClick={() => void del()} />
           </>
         )}
       </div>

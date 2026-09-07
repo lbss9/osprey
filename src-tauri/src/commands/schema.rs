@@ -5,19 +5,29 @@ use crate::error::CmdResult;
 use crate::models::{ColumnInfo, TableInfo, TableStructure};
 use crate::state::AppState;
 
+/// `include_system` lists template databases / catalog schemas too (a user
+/// preference; off by default).
 #[tauri::command]
-pub async fn schema_databases(state: State<'_, AppState>, connection_id: String) -> CmdResult<Vec<String>> {
+pub async fn schema_databases(
+    state: State<'_, AppState>,
+    connection_id: String,
+    include_system: Option<bool>,
+) -> CmdResult<Vec<String>> {
     let s = state.session(&connection_id).await?;
     Ok(match &s {
-        Session::Sql(d) => d.list_databases().await?,
+        Session::Sql(d) => d.list_databases(include_system.unwrap_or(false)).await?,
         Session::Redis(r) => r.databases().await?,
     })
 }
 
 #[tauri::command]
-pub async fn schema_list(state: State<'_, AppState>, connection_id: String) -> CmdResult<Vec<String>> {
+pub async fn schema_list(
+    state: State<'_, AppState>,
+    connection_id: String,
+    include_system: Option<bool>,
+) -> CmdResult<Vec<String>> {
     let s = state.session(&connection_id).await?.sql()?;
-    Ok(s.list_schemas().await?)
+    Ok(s.list_schemas(include_system.unwrap_or(false)).await?)
 }
 
 #[tauri::command]

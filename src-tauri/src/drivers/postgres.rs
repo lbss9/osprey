@@ -45,13 +45,22 @@ impl PgDriver {
                     cfg.database.clone()
                 }
             });
+        let timeout = cfg.options.get("connectTimeout").and_then(|v| v.as_u64()).filter(|s| *s > 0).unwrap_or(15);
+        let app_name = cfg
+            .options
+            .get("applicationName")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("Osprey")
+            .to_string();
         let mut c = Config::new();
         c.host(&cfg.host)
             .port(cfg.port)
             .user(&cfg.user)
             .dbname(&db)
-            .application_name("Osprey")
-            .connect_timeout(std::time::Duration::from_secs(15));
+            .application_name(&app_name)
+            .connect_timeout(std::time::Duration::from_secs(timeout));
         if let Some(p) = password {
             if !p.is_empty() {
                 c.password(p);
@@ -84,6 +93,10 @@ impl PgDriver {
                 (client, Some(tls_cfg), task)
             }
         };
+        if cfg.read_only {
+            // enforced by the server, not only by the UI
+            client.simple_query("SET default_transaction_read_only = on").await?;
+        }
         Ok(PgDriver {
             client,
             tls,
@@ -141,26 +154,28 @@ impl SqlDriver for PgDriver {
         })
     }
 
-    async fn list_databases(&self) -> AppResult<Vec<String>> {
-        let rows = self
-            .rows_text(
-                "SELECT datname::text FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname",
-                &[],
-            )
-            .await?;
+    async fn list_databases(&self, include_system: bool) -> AppResult<Vec<String>> {
+        let sql = if include_system {
+            "SELECT datname::text FROM pg_database ORDER BY datistemplate, datname"
+        } else {
+            "SELECT datname::text FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname"
+        };
+        let rows = self.rows_text(sql, &[]).await?;
         Ok(rows.into_iter().filter_map(|r| r.into_iter().next().flatten()).collect())
     }
 
-    async fn list_schemas(&self) -> AppResult<Vec<String>> {
-        let rows = self
-            .rows_text(
-                "SELECT nspname::text FROM pg_namespace
-                 WHERE nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
-                   AND nspname NOT LIKE 'pg_temp%' AND nspname NOT LIKE 'pg_toast_temp%'
-                 ORDER BY (nspname <> 'public'), nspname",
-                &[],
-            )
-            .await?;
+    async fn list_schemas(&self, include_system: bool) -> AppResult<Vec<String>> {
+        let sql = if include_system {
+            "SELECT nspname::text FROM pg_namespace
+             WHERE nspname NOT LIKE 'pg_temp%' AND nspname NOT LIKE 'pg_toast_temp%'
+             ORDER BY (nspname <> 'public'), (nspname IN ('pg_catalog', 'information_schema', 'pg_toast')), nspname"
+        } else {
+            "SELECT nspname::text FROM pg_namespace
+             WHERE nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+               AND nspname NOT LIKE 'pg_temp%' AND nspname NOT LIKE 'pg_toast_temp%'
+             ORDER BY (nspname <> 'public'), nspname"
+        };
+        let rows = self.rows_text(sql, &[]).await?;
         Ok(rows.into_iter().filter_map(|r| r.into_iter().next().flatten()).collect())
     }
 

@@ -20,6 +20,8 @@ interface UiState {
   safeMode: boolean;
   confirmClose: boolean;
   redisTree: boolean;
+  /** list pg_catalog / information_schema / templates / mysql / sys */
+  showSystemObjects: boolean;
   settingsOpen: boolean;
   settingsTab: string;
   connectionDialog: { open: boolean; editing?: ConnectionConfig | null; clone?: boolean };
@@ -45,6 +47,7 @@ export const useUi = create<UiState>()(
       safeMode: true,
       confirmClose: true,
       redisTree: true,
+      showSystemObjects: false,
       settingsOpen: false,
       settingsTab: "general",
       connectionDialog: { open: false, editing: null },
@@ -70,6 +73,7 @@ export const useUi = create<UiState>()(
         safeMode: s.safeMode,
         confirmClose: s.confirmClose,
         redisTree: s.redisTree,
+        showSystemObjects: s.showSystemObjects,
       }),
     },
   ),

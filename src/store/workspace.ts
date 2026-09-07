@@ -6,6 +6,7 @@
 import { create } from "zustand";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
+import { useUi } from "@/store/ui";
 import type { ConnectionConfig, ServerInfo, Tab, TabKind, TableInfo } from "@/types";
 
 export type SessionStatus = "connecting" | "open" | "error";
@@ -42,6 +43,9 @@ interface WorkspaceState {
   connect: (id: string, database?: string) => Promise<boolean>;
   disconnect: (id: string) => Promise<void>;
   loadSchemas: (id: string) => Promise<void>;
+  /** re-read databases/schemas/tables of every open session (after a preference change) */
+  reloadAllSchemas: () => Promise<void>;
+  reconnect: (id: string) => Promise<boolean>;
   loadTables: (id: string, schema: string) => Promise<void>;
   toggleExpanded: (id: string, key: string, value?: boolean) => void;
   toggleGroup: (name: string) => void;
@@ -114,7 +118,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
         void get().loadSchemas(id);
       } else {
         try {
-          const databases = await api.schemaDatabases(id);
+          const databases = await api.schemaDatabases(id, useUi.getState().showSystemObjects);
           set((s) => ({ sessions: { ...s.sessions, [id]: { ...s.sessions[id], databases } } }));
         } catch {
           /* CONFIG may be disabled; keep the default list */
@@ -147,9 +151,10 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
 
   loadSchemas: async (id) => {
     try {
+      const includeSystem = useUi.getState().showSystemObjects;
       const [schemas, databases] = await Promise.all([
-        api.schemaList(id),
-        api.schemaDatabases(id).catch(() => [] as string[]),
+        api.schemaList(id, includeSystem),
+        api.schemaDatabases(id, includeSystem).catch(() => [] as string[]),
       ]);
       set((s) => {
         const prev = s.sessions[id];
@@ -168,6 +173,32 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
     } catch (e) {
       get().toast(translateError(e), "error");
     }
+  },
+
+  reloadAllSchemas: async () => {
+    const { sessions, connections } = get();
+    for (const [id, sess] of Object.entries(sessions)) {
+      if (sess.status !== "open") continue;
+      const conn = connections.find((c) => c.id === id);
+      set((s) => ({ sessions: { ...s.sessions, [id]: { ...s.sessions[id], tables: {}, schemas: conn?.driver === "redis" ? undefined : s.sessions[id].schemas } } }));
+      if (conn?.driver === "redis") continue;
+      await get().loadSchemas(id);
+      // re-open the schemas the user had expanded
+      const expanded = get().sessions[id]?.expanded ?? {};
+      for (const key of Object.keys(expanded)) {
+        if (key.startsWith("schema:") && expanded[key]) void get().loadTables(id, key.slice(7));
+      }
+    }
+  },
+
+  reconnect: async (id) => {
+    const database = get().sessions[id]?.database;
+    try {
+      await api.sessionClose(id);
+    } catch {
+      /* not open */
+    }
+    return get().connect(id, database);
   },
 
   loadTables: async (id, schema) => {

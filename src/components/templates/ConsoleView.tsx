@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
 import Input from "@/components/atoms/Input";
+import ToolButton from "@/components/molecules/ToolButton";
 import ConnChip from "@/components/molecules/ConnChip";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
@@ -76,9 +77,7 @@ export default function ConsoleView({ tab }: { tab: Tab }) {
         </div>
         <ConnChip connectionId={tab.connectionId} />
         <span className="grow" />
-        <Button size="sm" onClick={() => setLog([])} title={t("query.clearHistory")}>
-          <Icon name="trash" size={14} />
-        </Button>
+        <ToolButton icon="trash" title={t("query.clearHistory")} onClick={() => setLog([])} />
       </div>
       <div className="log" ref={logRef}>
         {log.length === 0 && <div className="hint" style={{ padding: 0 }}>{t("redis.consoleHint")}</div>}

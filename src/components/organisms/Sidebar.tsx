@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
-import ContextMenu from "@/components/molecules/ContextMenu";
-import { useContextMenu } from "@/hooks/useContextMenu";
+import Input from "@/components/atoms/Input";
+import Spinner from "@/components/atoms/Spinner";
+import Dropdown from "@/components/molecules/Dropdown";
+import ToolButton from "@/components/molecules/ToolButton";
+import { useContextMenu, type ContextMenuItem } from "@/components/molecules/ContextMenu";
 import { useUi } from "@/store/ui";
 import { useWorkspace, type SessionState } from "@/store/workspace";
 import * as api from "@/services/tauri";
@@ -15,6 +17,12 @@ import type { ConnectionConfig, TableInfo } from "@/types";
 
 const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)" };
 
+function connectionUrl(c: ConnectionConfig): string {
+  const scheme = c.driver === "postgres" ? "postgresql" : c.driver;
+  const auth = c.user ? `${encodeURIComponent(c.user)}@` : "";
+  return `${scheme}://${auth}${c.host}:${c.port}${c.database ? `/${c.database}` : ""}`;
+}
+
 /** Connections tree: groups → connections → databases/schemas → tables. */
 export default function Sidebar() {
   const { t } = useTranslation();
@@ -22,9 +30,12 @@ export default function Sidebar() {
   const sessions = useWorkspace((s) => s.sessions);
   const groupsCollapsed = useWorkspace((s) => s.groupsCollapsed);
   const toggleGroup = useWorkspace((s) => s.toggleGroup);
+  const reloadAllSchemas = useWorkspace((s) => s.reloadAllSchemas);
   const openConnectionDialog = useUi((s) => s.openConnectionDialog);
+  const showSystem = useUi((s) => s.showSystemObjects);
+  const setUi = useUi((s) => s.set);
   const [filter, setFilter] = useState("");
-  const ctx = useContextMenu();
+  const { open } = useContextMenu();
 
   const groups = useMemo(() => {
     const map = new Map<string, ConnectionConfig[]>();
@@ -36,31 +47,33 @@ export default function Sidebar() {
     return [...map.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)));
   }, [connections]);
 
+  const toggleSystem = () => {
+    setUi({ showSystemObjects: !showSystem });
+    void reloadAllSchemas();
+  };
+
+  const emptyMenu = (): ContextMenuItem[] => [
+    { label: t("ctx.newConnection"), icon: "plus", shortcut: "Ctrl+N", onSelect: () => openConnectionDialog(null) },
+    { label: t("ctx.refreshAll"), icon: "refresh", onSelect: () => void reloadAllSchemas() },
+    { separator: true },
+    { label: t("ctx.showSystem"), checked: showSystem, onSelect: toggleSystem },
+  ];
+
   return (
     <div className="sidebar">
       <div className="sidebar-head">
         <span className="title">{t("sidebar.connections")}</span>
-        <Button size="sm" icon title={t("menu.newConnection")} onClick={() => openConnectionDialog(null)}>
-          <Icon name="plus" size={15} />
-        </Button>
+        <ToolButton icon="plus" title={`${t("menu.newConnection")} (Ctrl+N)`} onClick={() => openConnectionDialog(null)} />
       </div>
       <div className="sidebar-search">
         <Icon name="search" size={14} />
-        <input
-          className="input"
-          placeholder={t("sidebar.filter")}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+        <Input placeholder={t("sidebar.filter")} value={filter} onChange={(e) => setFilter(e.target.value)} />
       </div>
-      <div className="tree">
+      <div className="tree" onContextMenu={(e) => open(e, emptyMenu)}>
         {connections.length === 0 && (
           <div className="sidebar-empty">
             <strong>{t("sidebar.empty")}</strong>
             <span>{t("sidebar.emptyHint")}</span>
-            <Button variant="primary" size="sm" onClick={() => openConnectionDialog(null)}>
-              <Icon name="plus" size={14} /> {t("menu.newConnection")}
-            </Button>
           </div>
         )}
         {groups.map(([name, list]) => (
@@ -72,92 +85,103 @@ export default function Sidebar() {
               </div>
             )}
             {(!name || !groupsCollapsed[name]) &&
-              list.map((c) => (
-                <ConnectionNode key={c.id} conn={c} session={sessions[c.id]} filter={filter} ctx={ctx} />
-              ))}
+              list.map((c) => <ConnectionNode key={c.id} conn={c} session={sessions[c.id]} filter={filter} onToggleSystem={toggleSystem} />)}
           </div>
         ))}
       </div>
-      <ContextMenu menu={ctx.menu} onClose={ctx.close} />
     </div>
   );
 }
+
+/* ------------------------------- connection ------------------------------- */
 
 function ConnectionNode({
   conn,
   session,
   filter,
-  ctx,
+  onToggleSystem,
 }: {
   conn: ConnectionConfig;
   session?: SessionState;
   filter: string;
-  ctx: ReturnType<typeof useContextMenu>;
+  onToggleSystem: () => void;
 }) {
   const { t } = useTranslation();
   const ws = useWorkspace();
   const openConnectionDialog = useUi((s) => s.openConnectionDialog);
+  const showSystem = useUi((s) => s.showSystemObjects);
+  const toast = useWorkspace((s) => s.toast);
+  const { open } = useContextMenu();
   const status = session?.status;
-  const open = status === "open";
-  const expanded = open && session?.expanded.root !== false;
+  const isOpen = status === "open";
+  const expanded = isOpen && session?.expanded.root !== false;
   const activeTab = ws.tabs.find((x) => x.id === ws.activeTabId);
+  const isRedis = conn.driver === "redis";
 
   const onClick = () => {
-    if (!session) {
-      void ws.connect(conn.id);
-    } else if (status === "open") {
-      ws.toggleExpanded(conn.id, "root");
-    } else if (status === "error") {
-      void ws.connect(conn.id);
+    if (!session || status === "error") void ws.connect(conn.id);
+    else if (status === "open") ws.toggleExpanded(conn.id, "root");
+  };
+
+  const openQuery = (sql?: string) =>
+    ws.openTab({ kind: "query", connectionId: conn.id, title: t("tabs.query"), sql: sql ?? "" }, { reuse: false });
+  const openRedis = (kind: "redis" | "console" | "info") =>
+    ws.openTab({ kind, connectionId: conn.id, title: kind === "redis" ? t("tabs.keys") : kind === "console" ? t("tabs.console") : t("tabs.info") });
+
+  const remove = async () => {
+    if (!(await confirmDialog(t("sidebar.deleteConfirm", { name: conn.name })))) return;
+    try {
+      await api.connectionDelete(conn.id);
+      await ws.disconnect(conn.id);
+      await ws.loadConnections();
+    } catch (e) {
+      toast(translateError(e), "error");
     }
   };
 
-  const onContext = (e: React.MouseEvent) => {
-    ctx.open(e, [
-      open
-        ? { label: t("sidebar.disconnect"), icon: "unplug", action: () => void ws.disconnect(conn.id) }
-        : { label: t("sidebar.connect"), icon: "plug", action: () => void ws.connect(conn.id) },
-      ...(open && conn.driver !== "redis"
-        ? [{ label: t("menu.newQuery"), icon: "fileCode" as const, action: () => openQuery(conn) }]
-        : []),
-      ...(open && conn.driver === "redis"
-        ? [
-            { label: t("sidebar.console"), icon: "terminal" as const, action: () => openRedis(conn, "console") },
-            { label: t("sidebar.info"), icon: "info" as const, action: () => openRedis(conn, "info") },
-          ]
-        : []),
-      { sep: true },
-      { label: t("sidebar.editConnection"), icon: "pencil", action: () => openConnectionDialog(conn) },
-      { label: t("sidebar.duplicate"), icon: "copy", action: () => openConnectionDialog(conn, true) },
-      { sep: true },
+  const menu = (): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = [];
+    if (isOpen) {
+      items.push(
+        { label: t("ctx.disconnect"), icon: "unplug", onSelect: () => void ws.disconnect(conn.id) },
+        { label: t("ctx.reconnect"), icon: "plugZap", onSelect: () => void ws.reconnect(conn.id) },
+        { label: t("ctx.refresh"), icon: "refresh", shortcut: "Ctrl+R", onSelect: () => void ws.reconnect(conn.id) },
+        { separator: true },
+      );
+      if (isRedis) {
+        items.push(
+          { label: t("ctx.openKeys"), icon: "keyRound", onSelect: () => openRedis("redis") },
+          { label: t("ctx.openConsole"), icon: "terminal", onSelect: () => openRedis("console") },
+          { label: t("ctx.openInfo"), icon: "info", onSelect: () => openRedis("info") },
+        );
+      } else {
+        items.push(
+          { label: t("ctx.newQuery"), icon: "fileCode", shortcut: "Ctrl+T", onSelect: () => openQuery() },
+          { label: t("ctx.openInfo"), icon: "info", onSelect: () => ws.openTab({ kind: "info", connectionId: conn.id, title: t("tabs.info") }) },
+          { label: t("ctx.showSystem"), checked: showSystem, onSelect: onToggleSystem },
+        );
+      }
+      items.push({ separator: true });
+    } else {
+      items.push({ label: t("ctx.connect"), icon: "plug", onSelect: () => void ws.connect(conn.id) }, { separator: true });
+    }
+    items.push(
       {
-        label: t("sidebar.deleteConnection"),
-        icon: "trash",
-        danger: true,
-        action: async () => {
-          if (await confirmDialog(t("sidebar.deleteConfirm", { name: conn.name }))) {
-            try {
-              await api.connectionDelete(conn.id);
-              await ws.disconnect(conn.id);
-              await ws.loadConnections();
-            } catch (e) {
-              ws.toast(translateError(e), "error");
-            }
-          }
-        },
+        label: t("ctx.copy"),
+        icon: "copy",
+        children: [
+          { label: t("ctx.copyName"), onSelect: () => void copyText(conn.name) },
+          { label: t("ctx.copyHost"), onSelect: () => void copyText(`${conn.host}:${conn.port}`) },
+          { label: t("ctx.copyUrl"), onSelect: () => void copyText(connectionUrl(conn)) },
+        ],
       },
-    ]);
-  };
-
-  const openQuery = (c: ConnectionConfig, sql?: string) => {
-    ws.openTab({ kind: "query", connectionId: c.id, title: t("tabs.query"), sql: sql ?? "" }, { reuse: false });
-  };
-  const openRedis = (c: ConnectionConfig, kind: "redis" | "console" | "info") => {
-    ws.openTab({
-      kind,
-      connectionId: c.id,
-      title: kind === "redis" ? t("tabs.keys") : kind === "console" ? t("tabs.console") : t("tabs.info"),
-    });
+      { separator: true },
+      { label: t("ctx.properties"), icon: "settings", onSelect: () => openConnectionDialog(conn) },
+      { label: t("ctx.duplicate"), icon: "copy", onSelect: () => openConnectionDialog(conn, true) },
+      { separator: true },
+      { label: t("ctx.delete"), icon: "trash", danger: true, onSelect: () => void remove() },
+    );
+    return items;
   };
 
   return (
@@ -165,20 +189,17 @@ function ConnectionNode({
       <div
         className={`tree-row conn ${activeTab?.connectionId === conn.id ? "active" : ""}`}
         onClick={onClick}
-        onContextMenu={onContext}
+        onDoubleClick={() => openConnectionDialog(conn)}
+        onContextMenu={(e) => open(e, menu)}
         title={`${conn.user ? conn.user + "@" : ""}${conn.host}:${conn.port}`}
       >
-        <Icon name="chevronRight" size={14} className={`chev ${expanded ? "open" : ""} ${open ? "" : "hidden"}`} />
+        <Icon name="chevronRight" size={14} className={`chev ${expanded ? "open" : ""} ${isOpen ? "" : "hidden"}`} />
         <span className="dot" style={{ background: conn.color || DRIVER_COLOR[conn.driver] }} />
         <span className="label">{conn.name}</span>
         {conn.readOnly && <Icon name="eye" size={12} className="meta" />}
-        {status === "connecting" ? <span className="spinner" /> : <span className={`status ${status ?? ""}`} />}
+        {status === "connecting" ? <Spinner /> : <span className={`status ${status ?? ""}`} />}
       </div>
-      {expanded && session && (conn.driver === "redis" ? (
-        <RedisNodes conn={conn} session={session} onOpen={openRedis} />
-      ) : (
-        <SqlNodes conn={conn} session={session} filter={filter} ctx={ctx} onQuery={openQuery} />
-      ))}
+      {expanded && session && (isRedis ? <RedisNodes conn={conn} session={session} onOpen={openRedis} /> : <SqlNodes conn={conn} session={session} filter={filter} onQuery={openQuery} />)}
       {status === "error" && session?.error && (
         <div className="tree-empty" style={{ color: "var(--red)" }}>
           {session.error}
@@ -188,15 +209,9 @@ function ConnectionNode({
   );
 }
 
-function RedisNodes({
-  conn,
-  session,
-  onOpen,
-}: {
-  conn: ConnectionConfig;
-  session: SessionState;
-  onOpen: (c: ConnectionConfig, kind: "redis" | "console" | "info") => void;
-}) {
+/* ---------------------------------- redis --------------------------------- */
+
+function RedisNodes({ conn, session, onOpen }: { conn: ConnectionConfig; session: SessionState; onOpen: (kind: "redis" | "console" | "info") => void }) {
   const { t } = useTranslation();
   const ws = useWorkspace();
   const dbs = session.databases ?? Array.from({ length: 16 }, (_, i) => String(i));
@@ -204,31 +219,25 @@ function RedisNodes({
     <div>
       <div className="db-switch">
         <Icon name="database" size={13} style={{ color: "var(--text-faint)" }} />
-        <select
-          className="select"
+        <Dropdown
+          size="sm"
           value={session.database ?? "0"}
-          onChange={(e) => void ws.connect(conn.id, e.target.value)}
+          options={dbs.map((d) => ({ value: d, label: t("redis.database", { n: d }) }))}
+          onChange={(v) => void ws.connect(conn.id, v)}
           title={t("sidebar.switchDatabase")}
-        >
-          {dbs.map((d) => (
-            <option key={d} value={d}>
-              {t("redis.database", { n: d })}
-            </option>
-          ))}
-        </select>
+          className="db-dd"
+        />
       </div>
-      <div className="tree-row tree-indent-1" onClick={() => onOpen(conn, "redis")}>
+      <div className="tree-row tree-indent-1" onClick={() => onOpen("redis")}>
         <Icon name="keyRound" size={14} style={{ color: "var(--redis)" }} />
         <span className="label">{t("sidebar.keys")}</span>
-        {typeof session.info?.extra?.keys === "number" && (
-          <span className="meta">{formatNumber(session.info.extra.keys as number)}</span>
-        )}
+        {typeof session.info?.extra?.keys === "number" && <span className="meta">{formatNumber(session.info.extra.keys as number)}</span>}
       </div>
-      <div className="tree-row tree-indent-1" onClick={() => onOpen(conn, "console")}>
+      <div className="tree-row tree-indent-1" onClick={() => onOpen("console")}>
         <Icon name="terminal" size={14} style={{ color: "var(--text-faint)" }} />
         <span className="label">{t("sidebar.console")}</span>
       </div>
-      <div className="tree-row tree-indent-1" onClick={() => onOpen(conn, "info")}>
+      <div className="tree-row tree-indent-1" onClick={() => onOpen("info")}>
         <Icon name="info" size={14} style={{ color: "var(--text-faint)" }} />
         <span className="label">{t("sidebar.info")}</span>
       </div>
@@ -236,47 +245,54 @@ function RedisNodes({
   );
 }
 
-function SqlNodes({
-  conn,
-  session,
-  filter,
-  ctx,
-  onQuery,
-}: {
-  conn: ConnectionConfig;
-  session: SessionState;
-  filter: string;
-  ctx: ReturnType<typeof useContextMenu>;
-  onQuery: (c: ConnectionConfig, sql?: string) => void;
-}) {
+/* ----------------------------------- sql ---------------------------------- */
+
+const SYSTEM_SCHEMAS = new Set(["pg_catalog", "information_schema", "pg_toast", "mysql", "sys", "performance_schema"]);
+
+function SqlNodes({ conn, session, filter, onQuery }: { conn: ConnectionConfig; session: SessionState; filter: string; onQuery: (sql?: string) => void }) {
   const { t } = useTranslation();
   const ws = useWorkspace();
+  const { open } = useContextMenu();
   const schemas = session.schemas ?? [];
   const q = filter.trim().toLowerCase();
+
+  // while filtering, load every schema that was never expanded
+  useEffect(() => {
+    if (!q) return;
+    for (const schema of schemas) {
+      if (!session.tables[schema] && !session.loadingTables[schema]) void ws.loadTables(conn.id, schema);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, schemas.length]);
+
+  const schemaMenu = (schema: string): ContextMenuItem[] => [
+    { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, schema) },
+    { label: t("ctx.querySchema"), icon: "fileCode", onSelect: () => onQuery(conn.driver === "postgres" ? `SET search_path TO ${quoteIdent(schema, conn.driver)};\n` : `USE ${quoteIdent(schema, conn.driver)};\n`) },
+    { separator: true },
+    { label: t("ctx.copyName"), icon: "copy", onSelect: () => void copyText(schema) },
+    { separator: true },
+    { label: t("ctx.collapseAll"), onSelect: () => schemas.forEach((s) => ws.toggleExpanded(conn.id, `schema:${s}`, false)) },
+    { label: t("ctx.expandAll"), onSelect: () => schemas.forEach((s) => { ws.toggleExpanded(conn.id, `schema:${s}`, true); if (!session.tables[s]) void ws.loadTables(conn.id, s); }) },
+  ];
 
   return (
     <div>
       {conn.driver === "postgres" && session.databases && session.databases.length > 1 && (
         <div className="db-switch">
           <Icon name="database" size={13} style={{ color: "var(--text-faint)" }} />
-          <select
-            className="select"
+          <Dropdown
+            size="sm"
             value={session.database ?? ""}
-            onChange={(e) => void ws.connect(conn.id, e.target.value)}
+            options={session.databases.map((d) => ({ value: d, label: d }))}
+            onChange={(v) => void ws.connect(conn.id, v)}
             title={t("sidebar.switchDatabase")}
-          >
-            {session.databases.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+            className="db-dd"
+          />
         </div>
       )}
       {!session.schemas && (
         <div className="tree-empty">
-          <span className="spinner" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 6 }} />
-          {t("common.loading")}
+          <Spinner /> {t("common.loading")}
         </div>
       )}
       {schemas.map((schema) => {
@@ -286,20 +302,16 @@ function SqlNodes({
         const loading = session.loadingTables[schema];
         const visible = (tables ?? []).filter((tb) => !q || tb.name.toLowerCase().includes(q));
         if (q && tables && visible.length === 0) return null;
+        const system = SYSTEM_SCHEMAS.has(schema);
         return (
           <div key={schema}>
             <div
-              className="tree-row tree-indent-1"
+              className={`tree-row tree-indent-1 ${system ? "system" : ""}`}
               onClick={() => {
                 ws.toggleExpanded(conn.id, key);
                 if (!tables && !loading) void ws.loadTables(conn.id, schema);
               }}
-              onContextMenu={(e) =>
-                ctx.open(e, [
-                  { label: t("common.refresh"), icon: "refresh", action: () => void ws.loadTables(conn.id, schema) },
-                  { label: t("sidebar.copyName"), icon: "copy", action: () => void copyText(schema) },
-                ])
-              }
+              onContextMenu={(e) => open(e, () => schemaMenu(schema))}
             >
               <Icon name="chevronRight" size={14} className={`chev ${isOpen ? "open" : ""}`} />
               <Icon name="layers" size={14} style={{ color: "var(--text-faint)" }} />
@@ -308,13 +320,14 @@ function SqlNodes({
             </div>
             {isOpen && (
               <div>
-                {loading && !tables && <div className="tree-empty">{t("common.loading")}</div>}
-                {tables && tables.length === 0 && <div className="tree-empty">{t("sidebar.noTables")}</div>}
-                {q && !tables && !loading && (
-                  <LoadOnFilter onLoad={() => void ws.loadTables(conn.id, schema)} />
+                {loading && !tables && (
+                  <div className="tree-empty">
+                    <Spinner /> {t("common.loading")}
+                  </div>
                 )}
+                {tables && tables.length === 0 && <div className="tree-empty">{t("sidebar.noTables")}</div>}
                 {visible.map((tb) => (
-                  <TableNode key={tb.name} conn={conn} table={tb} ctx={ctx} onQuery={onQuery} />
+                  <TableNode key={tb.name} conn={conn} table={tb} onQuery={onQuery} />
                 ))}
               </div>
             )}
@@ -325,58 +338,81 @@ function SqlNodes({
   );
 }
 
-function LoadOnFilter({ onLoad }: { onLoad: () => void }) {
-  // when the user filters, load schemas that were never expanded
-  useMemo(() => {
-    onLoad();
-    return null;
-  }, [onLoad]);
-  return null;
-}
-
-function TableNode({
-  conn,
-  table,
-  ctx,
-  onQuery,
-}: {
-  conn: ConnectionConfig;
-  table: TableInfo;
-  ctx: ReturnType<typeof useContextMenu>;
-  onQuery: (c: ConnectionConfig, sql?: string) => void;
-}) {
+function TableNode({ conn, table, onQuery }: { conn: ConnectionConfig; table: TableInfo; onQuery: (sql?: string) => void }) {
   const { t } = useTranslation();
   const ws = useWorkspace();
+  const toast = useWorkspace((s) => s.toast);
+  const { open } = useContextMenu();
   const activeTab = ws.tabs.find((x) => x.id === ws.activeTabId);
-  const isActive =
-    activeTab?.connectionId === conn.id && activeTab.schema === table.schema && activeTab.table === table.name;
-  const openData = () =>
-    ws.openTab({ kind: "table", connectionId: conn.id, title: table.name, schema: table.schema, table: table.name });
-  const openStructure = () =>
-    ws.openTab({
-      kind: "structure",
-      connectionId: conn.id,
-      title: table.name,
-      schema: table.schema,
-      table: table.name,
-    });
-  const qualified = `${quoteIdent(table.schema, conn.driver)}.${quoteIdent(table.name, conn.driver)}`;
+  const isActive = activeTab?.connectionId === conn.id && activeTab.schema === table.schema && activeTab.table === table.name;
   const isView = table.kind !== "table" && table.kind !== "partitioned";
-  return (
-    <div
-      className={`tree-row tree-indent-2 ${isActive ? "active" : ""}`}
-      onClick={openData}
-      onContextMenu={(e) =>
-        ctx.open(e, [
-          { label: t("sidebar.openTable"), icon: "table", action: openData },
-          { label: t("sidebar.openStructure"), icon: "list", action: openStructure },
-          { label: t("sidebar.queryTable"), icon: "fileCode", action: () => onQuery(conn, `SELECT *\nFROM ${qualified}\nLIMIT 100;`) },
-          { sep: true },
-          { label: t("sidebar.copyName"), icon: "copy", action: () => void copyText(qualified) },
-        ])
+  const qualified = `${quoteIdent(table.schema, conn.driver)}.${quoteIdent(table.name, conn.driver)}`;
+
+  const openData = () => ws.openTab({ kind: "table", connectionId: conn.id, title: table.name, schema: table.schema, table: table.name });
+  const openStructure = () => ws.openTab({ kind: "structure", connectionId: conn.id, title: table.name, schema: table.schema, table: table.name });
+
+  const countRows = async () => {
+    try {
+      const n = await api.tableCount(conn.id, { schema: table.schema, table: table.name, filters: [], limit: 1, offset: 0 });
+      toast(t("ctx.rows", { name: table.name, count: formatNumber(n) }), "info");
+    } catch (e) {
+      toast(translateError(e), "error");
+    }
+  };
+  const copyColumns = async () => {
+    try {
+      const cols = await api.tableColumns(conn.id, table.schema, table.name);
+      await copyText(cols.map((c) => quoteIdent(c.name, conn.driver)).join(", "));
+    } catch (e) {
+      toast(translateError(e), "error");
+    }
+  };
+  const destructive = async (kind: "truncate" | "drop") => {
+    const msg = kind === "truncate" ? t("ctx.truncateConfirm", { name: qualified }) : t("ctx.dropConfirm", { name: qualified });
+    if (!(await confirmDialog(msg))) return;
+    try {
+      await api.queryRun(conn.id, kind === "truncate" ? `TRUNCATE TABLE ${qualified}` : `DROP TABLE ${qualified}`, 1);
+      toast(kind === "truncate" ? t("ctx.truncated") : t("ctx.dropped"), "success");
+      if (kind === "drop") {
+        ws.tabs.filter((x) => x.connectionId === conn.id && x.table === table.name && x.schema === table.schema).forEach((x) => ws.closeTab(x.id));
+        void ws.loadTables(conn.id, table.schema);
+      } else {
+        window.dispatchEvent(new CustomEvent("osprey-refresh"));
       }
-      title={table.comment ?? undefined}
-    >
+    } catch (e) {
+      toast(translateError(e), "error");
+    }
+  };
+
+  const menu = (): ContextMenuItem[] => [
+    { label: t("ctx.openData"), icon: "table", onSelect: openData },
+    { label: t("ctx.structure"), icon: "list", onSelect: openStructure },
+    { label: t("ctx.newQuery"), icon: "fileCode", onSelect: () => onQuery(`SELECT *\nFROM ${qualified}\nLIMIT 100;`) },
+    { label: t("ctx.countRows"), icon: "zap", onSelect: () => void countRows() },
+    { separator: true },
+    {
+      label: t("ctx.copy"),
+      icon: "copy",
+      children: [
+        { label: t("ctx.copyName"), onSelect: () => void copyText(table.name) },
+        { label: t("ctx.copyQualified"), onSelect: () => void copyText(qualified) },
+        { label: t("ctx.copySelect"), onSelect: () => void copyText(`SELECT * FROM ${qualified} LIMIT 100;`) },
+        { label: t("ctx.copyColumns"), onSelect: () => void copyColumns() },
+      ],
+    },
+    { separator: true },
+    { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, table.schema) },
+    ...(!isView && !conn.readOnly
+      ? ([
+          { separator: true },
+          { label: t("ctx.truncate"), icon: "trash", danger: true, onSelect: () => void destructive("truncate") },
+          { label: t("ctx.drop"), icon: "trash", danger: true, onSelect: () => void destructive("drop") },
+        ] as ContextMenuItem[])
+      : []),
+  ];
+
+  return (
+    <div className={`tree-row tree-indent-2 ${isActive ? "active" : ""}`} onClick={openData} onContextMenu={(e) => open(e, menu)} title={table.comment ?? undefined}>
       <Icon name="chevronRight" size={14} className="chev hidden" />
       <Icon name={isView ? "eye" : "table"} size={14} style={{ color: isView ? "var(--purple)" : "var(--accent)" }} />
       <span className="label">{table.name}</span>

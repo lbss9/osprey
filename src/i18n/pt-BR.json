@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Osprey" },
+  "app": {
+    "name": "Osprey"
+  },
   "menu": {
     "file": "Arquivo",
     "edit": "Editar",
@@ -22,7 +24,12 @@
     "checkUpdates": "Verificar atualizações",
     "about": "Sobre o Osprey"
   },
-  "window": { "minimize": "Minimizar", "maximize": "Maximizar", "restore": "Restaurar", "close": "Fechar" },
+  "window": {
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar",
+    "close": "Fechar"
+  },
   "common": {
     "save": "Salvar",
     "cancel": "Cancelar",
@@ -123,7 +130,14 @@
     "testOk": "Conectado ao {{driver}} {{version}}",
     "save": "Salvar",
     "saveAndConnect": "Salvar e conectar",
-    "keychainWarning": "O cofre de credenciais do sistema não está disponível. A senha ficará no banco local do Osprey em texto puro."
+    "keychainWarning": "O cofre de credenciais do sistema não está disponível. A senha ficará no banco local do Osprey em texto puro.",
+    "advanced": "Avançado",
+    "connectTimeout": "Tempo limite de conexão (segundos)",
+    "applicationName": "Nome da aplicação",
+    "applicationNameHint": "Aparece em pg_stat_activity",
+    "properties": "Propriedades da conexão",
+    "general": "Geral",
+    "readOnlyServer": "Garantido pelo servidor: toda sessão nasce somente leitura"
   },
   "tabs": {
     "query": "Consulta",
@@ -159,7 +173,8 @@
     "next": "Próxima página",
     "addRow": "Adicionar linha",
     "readOnly": "Esta tabela não tem chave primária; a edição está desativada.",
-    "connectionReadOnly": "Esta conexão é somente leitura."
+    "connectionReadOnly": "Esta conexão é somente leitura.",
+    "copyRow": "Copiar linha como"
   },
   "filters": {
     "add": "Filtro",
@@ -332,7 +347,9 @@
     "updateError": "Não foi possível verificar atualizações",
     "aboutText": "Um cliente de banco de dados rápido e local para PostgreSQL, MySQL e Redis. Tudo fica na sua máquina.",
     "website": "GitHub",
-    "license": "Licença MIT"
+    "license": "Licença MIT",
+    "showSystem": "Mostrar bancos e schemas do sistema",
+    "showSystemHint": "pg_catalog, information_schema, templates, mysql, sys…"
   },
   "update": {
     "title": "Osprey {{version}} está pronto",
@@ -364,5 +381,48 @@
     "secrets": "Erro no cofre de credenciais",
     "io": "Erro de arquivo",
     "unknown": "Erro inesperado"
+  },
+  "ctx": {
+    "connect": "Conectar",
+    "disconnect": "Desconectar",
+    "reconnect": "Reconectar",
+    "refresh": "Atualizar",
+    "newQuery": "Nova consulta",
+    "openKeys": "Ver chaves",
+    "openConsole": "Abrir console",
+    "openInfo": "Informações do servidor",
+    "copy": "Copiar",
+    "copyHost": "Copiar host",
+    "copyUrl": "Copiar URL de conexão",
+    "copyName": "Copiar nome",
+    "copyQualified": "Copiar nome qualificado",
+    "copySelect": "Copiar SELECT",
+    "copyColumns": "Copiar lista de colunas",
+    "properties": "Propriedades…",
+    "duplicate": "Duplicar",
+    "delete": "Excluir",
+    "showSystem": "Mostrar bancos e schemas do sistema",
+    "collapseAll": "Recolher tudo",
+    "expandAll": "Expandir tudo",
+    "newConnection": "Nova conexão…",
+    "refreshAll": "Atualizar tudo",
+    "openData": "Abrir dados",
+    "structure": "Estrutura",
+    "querySchema": "Nova consulta neste schema",
+    "countRows": "Contar linhas",
+    "exportTable": "Exportar tabela…",
+    "truncate": "Esvaziar tabela…",
+    "drop": "Apagar tabela…",
+    "truncateConfirm": "Remover todas as linhas de {{name}}? Isso não pode ser desfeito.",
+    "dropConfirm": "Apagar {{name}}? A tabela e os dados são excluídos permanentemente.",
+    "truncated": "Tabela esvaziada",
+    "dropped": "Tabela apagada",
+    "rows": "{{name}}: {{count}} linhas",
+    "closeTab": "Fechar",
+    "closeOthers": "Fechar as outras",
+    "closeAll": "Fechar todas",
+    "closeRight": "Fechar abas à direita",
+    "connection": "Conexão",
+    "database": "Banco"
   }
 }

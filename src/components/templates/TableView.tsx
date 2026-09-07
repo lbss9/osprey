@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
-import Select from "@/components/atoms/Select";
+import Dropdown from "@/components/molecules/Dropdown";
+import ToolButton from "@/components/molecules/ToolButton";
 import ApplyDialog from "@/components/molecules/ApplyDialog";
 import ConnChip from "@/components/molecules/ConnChip";
 import ExportMenu from "@/components/molecules/ExportMenu";
@@ -279,9 +280,7 @@ export default function TableView({ tab }: { tab: Tab }) {
           <Icon name="filter" size={14} /> {t("filters.add")}
           {activeFilterCount > 0 && <Badge tone="accent">{activeFilterCount}</Badge>}
         </Button>
-        <Button size="sm" onClick={() => void load()} title={`${t("common.refresh")} (Ctrl+R)`} disabled={loading}>
-          <Icon name="refresh" size={14} className={loading ? "spin" : ""} />
-        </Button>
+        <ToolButton icon="refresh" title={`${t("common.refresh")} (Ctrl+R)`} onClick={() => void load()} busy={loading} />
         <ExportMenu columns={columns} rows={baseRows} baseName={table} table={qualified} />
         <span className="sep" />
         <Button size="sm" onClick={() => openTab({ kind: "structure", connectionId: tab.connectionId, title: table, schema, table })}>
@@ -356,22 +355,19 @@ export default function TableView({ tab }: { tab: Tab }) {
         }
         right={
           <div className="pager">
-            <Select
-              small
-              value={pageSize}
-              options={[50, 100, 200, 500, 1000].map((n) => ({ value: n, label: `${n}` }))}
+            <Dropdown
+              size="sm"
+              menuAlign="right"
+              value={String(pageSize)}
+              options={[50, 100, 200, 500, 1000].map((n) => ({ value: String(n), label: `${n}` }))}
               onChange={(v) => {
                 useUi.getState().set({ pageSize: Number(v) });
                 setOffset(0);
               }}
               title={t("grid.page")}
             />
-            <Button size="sm" icon disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - pageSize))} title={t("grid.prev")}>
-              <Icon name="chevronLeft" size={14} />
-            </Button>
-            <Button size="sm" icon disabled={!canNext || loading} onClick={() => setOffset(offset + pageSize)} title={t("grid.next")}>
-              <Icon name="chevronRight" size={14} />
-            </Button>
+            <ToolButton icon="chevronLeft" title={t("grid.prev")} disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - pageSize))} />
+            <ToolButton icon="chevronRight" title={t("grid.next")} disabled={!canNext || loading} onClick={() => setOffset(offset + pageSize)} />
           </div>
         }
       />

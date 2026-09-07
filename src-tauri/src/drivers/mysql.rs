@@ -58,16 +58,24 @@ impl MysqlDriver {
                 ));
             }
         }
+        if cfg.read_only {
+            // every pooled connection starts read-only, enforced by the server
+            b = b.setup(vec!["SET SESSION transaction_read_only = 1".to_string()]);
+        }
+        let timeout = cfg.options.get("connectTimeout").and_then(|v| v.as_u64()).filter(|s| *s > 0).unwrap_or(15);
         let opts: Opts = b.into();
         let pool = Pool::new(opts);
         // fail fast: the pool is lazy, so open one connection now
-        let mut conn = pool.get_conn().await.map_err(|e| {
-            let err: AppError = e.into();
-            match err {
-                AppError::Query(m) => AppError::Connect(m),
-                other => other,
-            }
-        })?;
+        let mut conn = tokio::time::timeout(std::time::Duration::from_secs(timeout), pool.get_conn())
+            .await
+            .map_err(|_| AppError::Connect("timeout".into()))?
+            .map_err(|e| {
+                let err: AppError = e.into();
+                match err {
+                    AppError::Query(m) => AppError::Connect(m),
+                    other => other,
+                }
+            })?;
         conn.ping().await?;
         drop(conn);
         Ok(MysqlDriver {
@@ -131,18 +139,21 @@ impl SqlDriver for MysqlDriver {
         })
     }
 
-    async fn list_databases(&self) -> AppResult<Vec<String>> {
+    async fn list_databases(&self, include_system: bool) -> AppResult<Vec<String>> {
         let rows = self.text_rows("SHOW DATABASES").await?;
-        Ok(rows
+        let mut dbs: Vec<String> = rows
             .into_iter()
             .filter_map(|r| r.into_iter().next().flatten())
-            .filter(|d| !SYSTEM_DBS.contains(&d.as_str()))
-            .collect())
+            .filter(|d| include_system || !SYSTEM_DBS.contains(&d.as_str()))
+            .collect();
+        // user databases first, system ones at the end
+        dbs.sort_by_key(|d| (SYSTEM_DBS.contains(&d.as_str()), d.to_lowercase()));
+        Ok(dbs)
     }
 
-    async fn list_schemas(&self) -> AppResult<Vec<String>> {
+    async fn list_schemas(&self, include_system: bool) -> AppResult<Vec<String>> {
         // in MySQL a schema is a database; show the current one first
-        let mut all = self.list_databases().await?;
+        let mut all = self.list_databases(include_system).await?;
         if !self.database.is_empty() {
             all.retain(|d| d != &self.database);
             all.insert(0, self.database.clone());

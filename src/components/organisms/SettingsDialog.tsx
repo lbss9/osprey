@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
-import Toggle from "@/components/atoms/Toggle";
+import Dropdown from "@/components/molecules/Dropdown";
+import SettingRow from "@/components/molecules/SettingRow";
+import ToggleRow from "@/components/molecules/ToggleRow";
+import ToolButton from "@/components/molecules/ToolButton";
 import i18n, { LANGUAGES } from "@/i18n";
 import { useUi, type ThemeChoice } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
@@ -12,6 +16,7 @@ import { checkForUpdates, installUpdate, useUpdater } from "@/services/updater";
 import { confirmDialog } from "@/utils/dialog";
 
 const TABS = ["general", "appearance", "data", "about"] as const;
+const num = (list: number[], suffix = "") => list.map((n) => ({ value: String(n), label: `${n}${suffix}` }));
 
 export default function SettingsDialog() {
   const { t } = useTranslation();
@@ -40,9 +45,7 @@ export default function SettingsDialog() {
       <div className="dialog wide">
         <div className="dialog-head">
           <h2>{t("settings.title")}</h2>
-          <Button size="sm" icon onClick={ui.closeSettings}>
-            <Icon name="x" size={14} />
-          </Button>
+          <ToolButton icon="x" title={t("common.close")} onClick={ui.closeSettings} />
         </div>
         <div className="settings-layout">
           <div className="settings-nav">
@@ -55,63 +58,31 @@ export default function SettingsDialog() {
           <div className="settings-pane">
             {tab === "general" && (
               <>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.language")}</b>
-                  </div>
-                  <select className="select" value={i18n.language.startsWith("pt") ? "pt-BR" : "en"} onChange={(e) => void i18n.changeLanguage(e.target.value)}>
-                    {LANGUAGES.map((l) => (
-                      <option key={l.code} value={l.code}>
-                        {l.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.pageSize")}</b>
-                  </div>
-                  <select className="select" value={ui.pageSize} onChange={(e) => ui.set({ pageSize: Number(e.target.value) })}>
-                    {[50, 100, 200, 500, 1000].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.queryLimit")}</b>
-                  </div>
-                  <select className="select" value={ui.queryLimit} onChange={(e) => ui.set({ queryLimit: Number(e.target.value) })}>
-                    {[100, 500, 1000, 5000, 10000, 50000].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.safeMode")}</b>
-                    <span>{t("settings.safeModeHint")}</span>
-                  </div>
-                  <Toggle checked={ui.safeMode} onChange={(v) => ui.set({ safeMode: v })} />
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.confirmClose")}</b>
-                  </div>
-                  <Toggle checked={ui.confirmClose} onChange={(v) => ui.set({ confirmClose: v })} />
-                </div>
+                <SettingRow label={t("settings.language")}>
+                  <Dropdown value={i18n.language.startsWith("pt") ? "pt-BR" : "en"} options={LANGUAGES.map((l) => ({ value: l.code, label: l.name }))} onChange={(v) => void i18n.changeLanguage(v)} />
+                </SettingRow>
+                <SettingRow label={t("settings.pageSize")}>
+                  <Dropdown value={String(ui.pageSize)} options={num([50, 100, 200, 500, 1000])} onChange={(v) => ui.set({ pageSize: Number(v) })} />
+                </SettingRow>
+                <SettingRow label={t("settings.queryLimit")}>
+                  <Dropdown value={String(ui.queryLimit)} options={num([100, 500, 1000, 5000, 10000, 50000])} onChange={(v) => ui.set({ queryLimit: Number(v) })} />
+                </SettingRow>
+                <ToggleRow
+                  label={t("settings.showSystem")}
+                  desc={t("settings.showSystemHint")}
+                  checked={ui.showSystemObjects}
+                  onChange={(v) => {
+                    ui.set({ showSystemObjects: v });
+                    void ws.reloadAllSchemas();
+                  }}
+                />
+                <ToggleRow label={t("settings.safeMode")} desc={t("settings.safeModeHint")} checked={ui.safeMode} onChange={(v) => ui.set({ safeMode: v })} />
+                <ToggleRow label={t("settings.confirmClose")} checked={ui.confirmClose} onChange={(v) => ui.set({ confirmClose: v })} />
               </>
             )}
             {tab === "appearance" && (
               <>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.theme")}</b>
-                  </div>
+                <SettingRow label={t("settings.theme")}>
                   <div className="theme-cards">
                     {(["auto", "dark", "light"] as ThemeChoice[]).map((th) => (
                       <Button key={th} variant="bare" className={`theme-card ${ui.theme === th ? "active" : ""}`} onClick={() => ui.set({ theme: th })}>
@@ -123,54 +94,24 @@ export default function SettingsDialog() {
                       </Button>
                     ))}
                   </div>
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.fontSize")}</b>
-                  </div>
-                  <select className="select" value={ui.fontSize} onChange={(e) => ui.set({ fontSize: Number(e.target.value) })}>
-                    {[11, 12, 13, 14, 15, 16].map((n) => (
-                      <option key={n} value={n}>
-                        {n} px
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.editorFontSize")}</b>
-                  </div>
-                  <select className="select" value={ui.editorFontSize} onChange={(e) => ui.set({ editorFontSize: Number(e.target.value) })}>
-                    {[11, 12, 13, 14, 15, 16, 18].map((n) => (
-                      <option key={n} value={n}>
-                        {n} px
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                </SettingRow>
+                <SettingRow label={t("settings.fontSize")}>
+                  <Dropdown value={String(ui.fontSize)} options={num([11, 12, 13, 14, 15, 16], " px")} onChange={(v) => ui.set({ fontSize: Number(v) })} />
+                </SettingRow>
+                <SettingRow label={t("settings.editorFontSize")}>
+                  <Dropdown value={String(ui.editorFontSize)} options={num([11, 12, 13, 14, 15, 16, 18], " px")} onChange={(v) => ui.set({ editorFontSize: Number(v) })} />
+                </SettingRow>
               </>
             )}
             {tab === "data" && (
               <>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.dataFolder")}</b>
-                    <span className="mono">{dataDir}</span>
-                  </div>
+                <SettingRow label={t("settings.dataFolder")} desc={<span className="mono">{dataDir}</span>}>
                   <Button variant="secondary" size="sm" onClick={() => void api.openDataDir()}>
                     <Icon name="folder" size={14} /> {t("settings.openFolder")}
                   </Button>
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.credentials")}</b>
-                    <span>{secretsOk ? t("settings.credentialsOk") : t("settings.credentialsFallback")}</span>
-                  </div>
-                </div>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.clearHistory")}</b>
-                  </div>
+                </SettingRow>
+                <SettingRow label={t("settings.credentials")} desc={secretsOk ? t("settings.credentialsOk") : t("settings.credentialsFallback")} />
+                <SettingRow label={t("settings.clearHistory")}>
                   <Button
                     variant="danger"
                     size="sm"
@@ -183,7 +124,7 @@ export default function SettingsDialog() {
                   >
                     <Icon name="trash" size={14} /> {t("common.delete")}
                   </Button>
-                </div>
+                </SettingRow>
               </>
             )}
             {tab === "about" && (
@@ -201,16 +142,17 @@ export default function SettingsDialog() {
                   </div>
                 </div>
                 <p style={{ color: "var(--text-soft)", lineHeight: 1.5, margin: 0 }}>{t("settings.aboutText")}</p>
-                <div className="settings-row">
-                  <div className="txt">
-                    <b>{t("settings.checkUpdates")}</b>
-                    <span>
+                <SettingRow
+                  label={t("settings.checkUpdates")}
+                  desc={
+                    <>
                       {u.status === "checking" && t("settings.checking")}
                       {u.status === "upToDate" && t("settings.upToDate")}
                       {(u.status === "available" || u.status === "downloading" || u.status === "installing") && t("settings.updateAvailable", { version: u.version })}
                       {u.status === "error" && `${t("settings.updateError")}: ${u.error}`}
-                    </span>
-                  </div>
+                    </>
+                  }
+                >
                   {u.status === "available" ? (
                     <Button variant="primary" size="sm" onClick={() => void installUpdate()}>
                       {t("settings.install")}
@@ -220,12 +162,12 @@ export default function SettingsDialog() {
                       <Icon name="refresh" size={14} /> {t("settings.checkUpdates")}
                     </Button>
                   )}
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                </SettingRow>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <Button variant="secondary" size="sm" onClick={() => void openUrl("https://github.com/lbss9/osprey")}>
                     {t("settings.website")}
                   </Button>
-                  <span className="badge">{t("settings.license")}</span>
+                  <Badge>{t("settings.license")}</Badge>
                 </div>
               </>
             )}

@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 import Button from "@/components/atoms/Button";
 import Icon, { type IconName } from "@/components/atoms/Icon";
-import ContextMenu from "@/components/molecules/ContextMenu";
-import { useContextMenu } from "@/hooks/useContextMenu";
+import { useContextMenu } from "@/components/molecules/ContextMenu";
+import ToolButton from "@/components/molecules/ToolButton";
 import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
 import { confirmDialog } from "@/utils/dialog";
@@ -27,17 +27,21 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
   const closeAll = useWorkspace((s) => s.closeAllTabs);
   const connections = useWorkspace((s) => s.connections);
   const confirmClose = useUi((s) => s.confirmClose);
-  const ctx = useContextMenu();
+  const { open } = useContextMenu();
 
   const tryClose = async (tab: Tab) => {
     if (tab.dirty && confirmClose && !(await confirmDialog(t("tabs.closeConfirm")))) return;
     closeTab(tab.id);
   };
+  const closeRight = (tab: Tab) => {
+    const i = tabs.findIndex((x) => x.id === tab.id);
+    tabs.slice(i + 1).forEach((x) => closeTab(x.id));
+  };
 
   return (
     <div className="tabbar">
       <div className="tabs">
-        {tabs.map((tab) => {
+        {tabs.map((tab, i) => {
           const conn = connections.find((c) => c.id === tab.connectionId);
           return (
             <div
@@ -46,10 +50,11 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
               onClick={() => setActive(tab.id)}
               onAuxClick={(e) => e.button === 1 && void tryClose(tab)}
               onContextMenu={(e) =>
-                ctx.open(e, [
-                  { label: t("common.close"), action: () => void tryClose(tab) },
-                  { label: t("tabs.closeOthers"), action: () => closeOthers(tab.id) },
-                  { label: t("tabs.closeAll"), action: closeAll },
+                open(e, [
+                  { label: t("ctx.closeTab"), icon: "x", shortcut: "Ctrl+W", onSelect: () => void tryClose(tab) },
+                  { label: t("ctx.closeOthers"), onSelect: () => closeOthers(tab.id), disabled: tabs.length < 2 },
+                  { label: t("ctx.closeRight"), onSelect: () => closeRight(tab), disabled: i === tabs.length - 1 },
+                  { label: t("ctx.closeAll"), onSelect: closeAll },
                 ])
               }
               title={conn ? `${conn.name}${tab.schema ? ` · ${tab.schema}` : ""}` : undefined}
@@ -58,9 +63,7 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
                 <Icon name={ICON[tab.kind]} size={14} />
               </span>
               <span className="t-label">{tab.title}</span>
-              {tabs.filter((x) => x.title === tab.title).length > 1 && conn && (
-                <span className="t-sub">{conn.name}</span>
-              )}
+              {tabs.filter((x) => x.title === tab.title).length > 1 && conn && <span className="t-sub">{conn.name}</span>}
               <Button
                 variant="bare"
                 className="t-close"
@@ -78,11 +81,8 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
         })}
       </div>
       <div className="tab-actions">
-        <Button size="sm" icon title={`${t("menu.newQuery")} (Ctrl+T)`} onClick={onNewQuery}>
-          <Icon name="plus" size={15} />
-        </Button>
+        <ToolButton icon="plus" title={`${t("menu.newQuery")} (Ctrl+T)`} onClick={onNewQuery} />
       </div>
-      <ContextMenu menu={ctx.menu} onClose={ctx.close} />
     </div>
   );
 }

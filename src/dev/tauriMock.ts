@@ -458,10 +458,11 @@ const handlers: Record<string, Handler> = {
   session_list: () => [...sessions.keys()],
   session_info: ({ connectionId }) => serverInfo(session(connectionId as string)),
 
-  schema_databases: ({ connectionId }) => (session(connectionId as string).driver === "redis" ? ["0", "1", "2"] : ["demo", "postgres"]),
-  schema_list: ({ connectionId }) => {
+  schema_databases: ({ connectionId, includeSystem }) =>
+    session(connectionId as string).driver === "redis" ? ["0", "1", "2"] : includeSystem ? ["demo", "postgres", "template0", "template1"] : ["demo", "postgres"],
+  schema_list: ({ connectionId, includeSystem }) => {
     session(connectionId as string);
-    return ["public", "audit"];
+    return includeSystem ? ["public", "audit", "information_schema", "pg_catalog"] : ["public", "audit"];
   },
   schema_tables: ({ connectionId, schema }) => {
     session(connectionId as string);

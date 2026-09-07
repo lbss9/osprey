@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./i18n";
 import "./styles/app.css";
+import { ContextMenuProvider } from "./components/molecules/ContextMenu";
 import App from "./pages/App";
 
 async function bootstrap() {
@@ -13,7 +14,9 @@ async function bootstrap() {
   }
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
-      <App />
+      <ContextMenuProvider>
+        <App />
+      </ContextMenuProvider>
     </React.StrictMode>,
   );
 }

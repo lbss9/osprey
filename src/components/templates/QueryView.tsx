@@ -4,8 +4,10 @@ import type { SQLNamespace } from "@codemirror/lang-sql";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
 import Resizer from "@/components/atoms/Resizer";
-import Select from "@/components/atoms/Select";
+import Dropdown from "@/components/molecules/Dropdown";
+import ToolButton from "@/components/molecules/ToolButton";
 import Spinner from "@/components/atoms/Spinner";
+import TabButton from "@/components/atoms/Tab";
 import ConnChip from "@/components/molecules/ConnChip";
 import ExportMenu from "@/components/molecules/ExportMenu";
 import StatusBar from "@/components/molecules/StatusBar";
@@ -106,16 +108,15 @@ export default function QueryView({ tab }: { tab: Tab }) {
         <ConnChip connectionId={tab.connectionId} />
         <span className="grow" />
         <span style={{ color: "var(--text-faint)", fontSize: "0.88em" }}>{t("query.limit")}</span>
-        <Select
-          small
-          value={limit}
-          options={[100, 500, 1000, 5000, 10000, 50000].map((n) => ({ value: n, label: formatNumber(n) }))}
+        <Dropdown
+          size="sm"
+          menuAlign="right"
+          value={String(limit)}
+          options={[100, 500, 1000, 5000, 10000, 50000].map((n) => ({ value: String(n), label: formatNumber(n) }))}
           onChange={(v) => setLimit(Number(v))}
-          style={{ width: 90 }}
+          ariaLabel={t("query.limit")}
         />
-        <Button size="sm" active={showHistory} onClick={() => setShowHistory((v) => !v)} title={t("query.history")}>
-          <Icon name="history" size={14} />
-        </Button>
+        <ToolButton icon="history" title={t("query.history")} active={showHistory} onClick={() => setShowHistory((v) => !v)} />
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
@@ -136,14 +137,14 @@ export default function QueryView({ tab }: { tab: Tab }) {
             {results && (
               <div className="result-tabs">
                 {gridSets.map(({ s, i }) => (
-                  <Button key={i} variant="bare" className={`rt ${active === i ? "active" : ""}`} onClick={() => setActive(i)}>
+                  <TabButton key={i} className="rt" active={active === i} onClick={() => setActive(i)}>
                     {gridSets.length > 1 ? t("query.result", { n: gridSets.findIndex((g) => g.i === i) + 1 }) : t("query.results")}
                     <span className="n">{formatNumber(s.rowCount)}</span>
-                  </Button>
+                  </TabButton>
                 ))}
-                <Button variant="bare" className={`rt ${showMessages ? "active" : ""}`} onClick={() => setActive(messagesIdx)}>
+                <TabButton className="rt" active={showMessages} onClick={() => setActive(messagesIdx)}>
                   {t("query.messages")}
-                </Button>
+                </TabButton>
               </div>
             )}
             {error && (

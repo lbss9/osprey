@@ -1,5 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { cell, connect, openApp, openTable } from "./helpers";
+
+/** Pick an option in an Osprey Dropdown (custom select). */
+async function pick(dd: Locator, label: string | RegExp) {
+  await dd.locator(".dd-trigger").click();
+  await dd.page().locator(".dd-menu .dd-item", { hasText: label }).first().click();
+}
+const menu = (page: Page) => page.locator(".ctx-menu").first();
 
 test.describe("connections", () => {
   test("welcome screen lists saved connections and creates a new one", async ({ page }) => {
@@ -7,16 +14,19 @@ test.describe("connections", () => {
     await expect(page.locator(".sidebar")).toContainText("Demo Postgres");
     await expect(page.locator(".sidebar")).toContainText("Demo Redis");
 
-    await page.locator(".sidebar-head").getByRole("button", { name: "New connection" }).click();
+    await page.locator(".sidebar-head").getByRole("button", { name: /New connection/ }).click();
     const dialog = page.locator(".dialog");
     await expect(dialog.getByRole("heading", { name: "New connection" })).toBeVisible();
 
     // Redis has no opportunistic TLS: "prefer" disappears and the default is off
     await dialog.getByText("Redis", { exact: true }).click();
-    await expect(dialog.locator("select").first()).toHaveValue("disable");
-    await expect(dialog.locator("select").first().locator("option")).toHaveCount(3);
+    const ssl = dialog.locator(".dd").first();
+    await expect(ssl.locator(".dd-value")).toHaveText("Disabled");
+    await ssl.locator(".dd-trigger").click();
+    await expect(page.locator(".dd-menu .dd-item")).toHaveCount(3);
+    await page.keyboard.press("Escape");
     await dialog.getByText("PostgreSQL", { exact: true }).click();
-    await expect(dialog.locator("select").first()).toHaveValue("prefer");
+    await expect(ssl.locator(".dd-value")).toContainText("Prefer");
 
     await dialog.getByPlaceholder("e.g. Production, Local dev…").fill("My PG");
     await dialog.getByRole("button", { name: "Test" }).click();
@@ -39,13 +49,60 @@ test.describe("connections", () => {
 
   test("connection errors are shown in the tree", async ({ page }) => {
     await openApp(page);
-    await page.locator(".sidebar-head").getByRole("button", { name: "New connection" }).click();
+    await page.locator(".sidebar-head").getByRole("button", { name: /New connection/ }).click();
     const dialog = page.locator(".dialog");
     await dialog.getByPlaceholder("e.g. Production, Local dev…").fill("Broken");
     await dialog.locator("input.mono").first().fill("bad.host");
     await dialog.getByRole("button", { name: "Save & connect" }).click();
     await expect(page.locator(".sidebar")).toContainText("Could not connect: connection refused");
     await expect(page.locator(".sidebar .tree-row.conn", { hasText: "Broken" }).locator(".status.error")).toBeVisible();
+  });
+
+  test("context menu: properties, copy submenu, system objects toggle", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    const row = page.locator(".sidebar .tree-row.conn", { hasText: "Demo Postgres" });
+
+    // Properties opens the dialog in edit mode with the saved values
+    await row.click({ button: "right" });
+    await expect(menu(page)).toContainText("Disconnect");
+    await menu(page).getByText("Properties…").click();
+    const dialog = page.locator(".dialog");
+    await expect(dialog.getByRole("heading", { name: "Connection properties" })).toBeVisible();
+    await expect(dialog.getByPlaceholder("e.g. Production, Local dev…")).toHaveValue("Demo Postgres");
+    await dialog.getByRole("tab", { name: "Advanced" }).click();
+    await expect(dialog.getByText("Connect timeout (seconds)")).toBeVisible();
+    await dialog.getByPlaceholder("15").fill("30");
+    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dialog).toBeHidden();
+
+    // copy submenu opens on hover
+    await row.click({ button: "right" });
+    await menu(page).getByText("Copy", { exact: true }).hover();
+    await expect(page.locator(".ctx-sub")).toContainText("Copy connection URL");
+    await page.keyboard.press("Escape");
+    await expect(menu(page)).toBeHidden();
+
+    // system objects are hidden until the toggle is on
+    const sidebar = page.locator(".sidebar");
+    await expect(sidebar.getByText("pg_catalog", { exact: true })).toHaveCount(0);
+    await row.click({ button: "right" });
+    await menu(page).getByText("Show system databases and schemas").click();
+    await expect(sidebar.getByText("pg_catalog", { exact: true })).toBeVisible();
+    await expect(sidebar.getByText("information_schema", { exact: true })).toBeVisible();
+    // the same toggle lives in Settings, in sync
+    await page.keyboard.press("Control+,");
+    const switchRow = page.locator(".setting-row", { hasText: "Show system databases and schemas" });
+    await expect(switchRow.locator(".toggle")).toHaveClass(/on/);
+    await switchRow.locator(".toggle").click();
+    await page.keyboard.press("Escape");
+    await expect(sidebar.getByText("pg_catalog", { exact: true })).toHaveCount(0);
+
+    // table menu: count rows + copy submenu
+    await sidebar.getByText("people", { exact: true }).click({ button: "right" });
+    await expect(menu(page)).toContainText("Truncate table…");
+    await menu(page).getByText("Count rows").click();
+    await expect(page.locator(".toast")).toContainText("people: 240 rows");
   });
 });
 
@@ -55,7 +112,6 @@ test.describe("table view", () => {
     await connect(page, "Demo Postgres");
     await openTable(page, "people");
 
-    // header carries the key icon and the type; first row is id 1
     const head = page.locator(".grid-head .g-cell");
     await expect(head.nth(0)).toContainText("id");
     await expect(head.nth(0).locator(".pk")).toBeVisible();
@@ -63,34 +119,30 @@ test.describe("table view", () => {
     await expect(cell(page, 0, "age").locator(".null")).toHaveText("NULL");
     await expect(page.locator(".statusbar")).toContainText("1–200 of 240");
 
-    // sort by name desc → "Person 99" first (string order)
     await head.nth(1).click();
     await head.nth(1).click();
     await expect(cell(page, 0, "name")).toHaveText("Person 99");
 
-    // next page
     await page.locator(".statusbar").getByRole("button", { name: "Next page" }).click();
     await expect(page.locator(".statusbar")).toContainText("201–240 of 240");
     await page.locator(".statusbar").getByRole("button", { name: "Previous page" }).click();
 
-    // no-code filter: name contains "12"
     await page.locator(".toolbar").getByRole("button", { name: "Filter" }).click();
     const bar = page.locator(".filterbar");
     await bar.getByRole("button", { name: "Filter" }).click();
-    await bar.locator("select.f-col").selectOption("name");
-    await bar.locator("select.f-op").selectOption("contains");
+    await pick(bar.locator(".f-col"), "name");
+    await pick(bar.locator(".f-op"), "contains");
     await bar.getByPlaceholder("Value").fill("12");
     await bar.getByRole("button", { name: "Apply" }).click();
     await expect(page.locator(".statusbar")).toContainText("1–13 of 13");
     await expect(page.locator(".g-row .g-cell:nth-child(3)").first()).toContainText("12");
 
-    // filter by value from the context menu (age NULL)
     await bar.getByRole("button", { name: "Clear filters" }).click();
     await bar.getByRole("button", { name: "Apply" }).click();
     await expect(page.locator(".statusbar")).toContainText("of 240");
     await cell(page, 0, "age").click({ button: "right" });
-    await page.locator(".ctx").getByText("Filter by this value").click();
-    await expect(bar.locator("select.f-op")).toHaveValue("isnull");
+    await menu(page).getByText("Filter by this value").click();
+    await expect(bar.locator(".f-op .dd-value")).toHaveText("is empty (NULL)");
     await expect(page.locator(".statusbar")).toContainText("of 35");
   });
 
@@ -106,13 +158,12 @@ test.describe("table view", () => {
     await expect(page.locator(".changes-bar")).toContainText("1 pending change");
     await expect(page.locator(".tab.active")).toHaveClass(/dirty/);
 
-    // set NULL via the context menu, add a row, delete a row
     await cell(page, 2, "email").click({ button: "right" });
-    await page.locator(".ctx").getByText("Set NULL").click();
+    await menu(page).getByText("Set NULL").click();
     await page.locator(".toolbar").getByRole("button", { name: "Add row" }).click();
     await expect(page.locator(".changes-bar")).toContainText("3 pending changes");
     await cell(page, 3, "id").click({ button: "right" });
-    await page.locator(".ctx").getByText("Delete row").click();
+    await menu(page).getByText("Delete row").click();
     await expect(page.locator(".g-row").nth(3)).toHaveClass(/deleted/);
     await expect(page.locator(".changes-bar")).toContainText("4 pending changes");
 
@@ -122,9 +173,8 @@ test.describe("table view", () => {
     await expect(preview).toContainText(`UPDATE "public"."people" SET "email" = NULL WHERE "id" = 3`);
     await expect(preview).toContainText(`INSERT INTO "public"."people" DEFAULT VALUES`);
     await expect(preview).toContainText(`DELETE FROM "public"."people" WHERE "id" = 4`);
-    await page.locator(".dialog").getByRole("button", { name: "Close" }).click();
+    await page.locator(".dialog .dialog-foot").getByRole("button", { name: "Close" }).click();
 
-    // Ctrl+S opens the same confirmation as the Apply button
     await page.keyboard.press("Control+s");
     await expect(page.locator(".dialog")).toContainText("Including 1 DELETE");
     await page.locator(".dialog").getByRole("button", { name: "Apply" }).click();
@@ -132,7 +182,7 @@ test.describe("table view", () => {
     await expect(page.locator(".changes-bar")).toBeHidden();
     await expect(cell(page, 1, "name")).toHaveText("Renamed person");
     await expect(cell(page, 2, "email").locator(".null")).toBeVisible();
-    await expect(page.locator(".statusbar")).toContainText("of 240"); // 240 - 1 + 1
+    await expect(page.locator(".statusbar")).toContainText("of 240");
     await expect(page.locator(".tab.active")).not.toHaveClass(/dirty/);
   });
 
@@ -151,7 +201,7 @@ test.describe("table view", () => {
     await openApp(page);
     await connect(page, "Demo Postgres");
     await page.locator(".sidebar").getByText("orders", { exact: true }).click({ button: "right" });
-    await page.locator(".ctx").getByText("Structure").click();
+    await menu(page).getByText("Structure").click();
     const view = page.locator(".structure");
     await expect(view).toContainText("orders_person_idx");
     await expect(view).toContainText("CASCADE");
@@ -175,17 +225,15 @@ test.describe("query view", () => {
     await expect(page.locator(".g-row").first()).toBeVisible();
     await expect(cell(page, 0, "name")).toHaveText("Person 1");
     await expect(page.locator(".result-tabs")).toContainText("Results");
-    await page.locator(".result-tabs").getByRole("button", { name: "Messages" }).click();
+    await page.locator(".result-tabs").getByRole("tab", { name: "Messages" }).click();
     await expect(page.locator(".messages")).toContainText("3 rows affected");
 
-    // errors are translated and keep the server detail
     await editor.click();
     await page.keyboard.press("Control+a");
     await page.keyboard.type("SELECT * FROM nope");
     await page.locator(".toolbar").getByRole("button", { name: "Run" }).click();
     await expect(page.locator(".messages .err")).toContainText('Query error: relation "nope" does not exist (position 15)');
 
-    // history panel lists both runs and loads one back into the editor
     await page.locator(".toolbar").getByRole("button", { name: "History" }).click();
     const hist = page.locator(".side-panel");
     await expect(hist.locator(".hist-item")).toHaveCount(2);
@@ -212,7 +260,6 @@ test.describe("redis", () => {
     await expect(panel.locator(".g-row")).toHaveCount(3);
     await expect(panel.locator(".g-row").first()).toContainText("Ana");
 
-    // add a field, edit it inline, delete it
     await panel.getByPlaceholder("Field").fill("email");
     await panel.getByPlaceholder("Value").fill("ana@example.com");
     await panel.getByRole("button", { name: "Add field" }).click();
@@ -222,10 +269,9 @@ test.describe("redis", () => {
     await page.keyboard.press("Enter");
     await expect(panel.locator(".g-row", { hasText: "email" })).toContainText("ana@osprey.dev");
     await panel.locator(".g-row", { hasText: "email" }).locator(".g-cell").first().click({ button: "right" });
-    await page.locator(".ctx").getByText("Delete row").click();
+    await menu(page).getByText("Delete row").click();
     await expect(panel.locator(".g-row")).toHaveCount(3);
 
-    // string value with TTL and the flat list toggle
     await keys.locator(".foot").getByRole("button").first().click(); // flat list
     await keys.locator(".key-row", { hasText: "session:abc123" }).click();
     await expect(panel.locator(".badge", { hasText: "expires in" })).toBeVisible();
@@ -234,7 +280,6 @@ test.describe("redis", () => {
     await panel.getByRole("button", { name: "Save value" }).click();
     await expect(panel.getByRole("button", { name: "Save value" })).toBeDisabled();
 
-    // pattern + type filter
     await keys.getByPlaceholder(/Key pattern/).fill("user:*");
     await keys.getByPlaceholder(/Key pattern/).press("Enter");
     await expect(keys.locator(".foot")).toContainText("2 keys loaded");
@@ -277,9 +322,9 @@ test.describe("shell", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
     await dialog.getByRole("button", { name: "General" }).click();
-    await dialog.locator("select").first().selectOption("pt-BR");
+    await pick(dialog.locator(".setting-row", { hasText: "Language" }).locator(".dd"), "Português");
     await expect(dialog.getByRole("heading", { name: "Configurações" })).toBeVisible();
-    await dialog.locator("select").first().selectOption("en");
+    await pick(dialog.locator(".setting-row", { hasText: "Idioma" }).locator(".dd"), "English");
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
 

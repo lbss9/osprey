@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
+import ToolButton from "@/components/molecules/ToolButton";
 import * as api from "@/services/tauri";
 import { formatDuration, relativeTime } from "@/utils/format";
 import type { HistoryEntry } from "@/types";
@@ -32,20 +33,15 @@ export default function HistoryPanel({
         <Icon name="history" size={13} />
         <span>{t("query.history")}</span>
         <span className="grow" />
-        <Button
-          size="sm"
-          icon
+        <ToolButton
+          icon="trash"
           title={t("query.clearHistory")}
           onClick={async () => {
             await api.historyClear(connectionId);
             setItems([]);
           }}
-        >
-          <Icon name="trash" size={13} />
-        </Button>
-        <Button size="sm" icon onClick={onClose}>
-          <Icon name="x" size={13} />
-        </Button>
+        />
+        <ToolButton icon="x" title={t("common.close")} onClick={onClose} />
       </div>
       <div className="list">
         {items.length === 0 && <div className="tree-empty">{t("query.historyEmpty")}</div>}

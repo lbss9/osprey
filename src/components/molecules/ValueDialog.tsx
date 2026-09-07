@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Button from "@/components/atoms/Button";
-import Icon from "@/components/atoms/Icon";
+import Tab from "@/components/atoms/Tab";
+import ToolButton from "@/components/molecules/ToolButton";
 import { copyText } from "@/utils/clipboard";
 import { looksLikeJson, prettyJson } from "@/utils/format";
 
@@ -39,20 +40,16 @@ export default function ValueDialog({
           <h2 className="mono" style={{ fontSize: "1em" }}>{title}</h2>
           {isJson && (
             <div className="pill-tabs">
-              <Button variant="bare" className={!pretty ? "active" : ""} onClick={() => setPretty(false)}>
+              <Tab active={!pretty} onClick={() => setPretty(false)}>
                 {t("redis.raw")}
-              </Button>
-              <Button variant="bare" className={pretty ? "active" : ""} onClick={() => setPretty(true)}>
+              </Tab>
+              <Tab active={pretty} onClick={() => setPretty(true)}>
                 {t("redis.prettyJson")}
-              </Button>
+              </Tab>
             </div>
           )}
-          <Button size="sm" icon onClick={() => void copyText(shown)} title={t("common.copy")}>
-            <Icon name="copy" size={14} />
-          </Button>
-          <Button size="sm" icon onClick={onClose} title={t("common.close")}>
-            <Icon name="x" size={14} />
-          </Button>
+          <ToolButton icon="copy" title={t("common.copy")} onClick={() => void copyText(shown)} />
+          <ToolButton icon="x" title={t("common.close")} onClick={onClose} />
         </div>
         <div className="dialog-body value-viewer">
           <textarea

@@ -27,9 +27,10 @@ pub trait SqlDriver: Send + Sync {
     fn dialect(&self) -> sql::Dialect;
     async fn server_info(&self) -> AppResult<ServerInfo>;
     /// PostgreSQL: databases of the cluster. MySQL: schemas (same thing there).
-    async fn list_databases(&self) -> AppResult<Vec<String>>;
+    /// `include_system` adds templates / information_schema and friends.
+    async fn list_databases(&self, include_system: bool) -> AppResult<Vec<String>>;
     /// PostgreSQL: schemas of the current database. MySQL: databases.
-    async fn list_schemas(&self) -> AppResult<Vec<String>>;
+    async fn list_schemas(&self, include_system: bool) -> AppResult<Vec<String>>;
     async fn list_tables(&self, schema: &str) -> AppResult<Vec<TableInfo>>;
     async fn columns(&self, schema: &str, table: &str) -> AppResult<Vec<ColumnInfo>>;
     async fn structure(&self, schema: &str, table: &str) -> AppResult<TableStructure>;

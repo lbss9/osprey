@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
 import Spinner from "@/components/atoms/Spinner";
+import ToolButton from "@/components/molecules/ToolButton";
 import SqlPreview from "@/components/molecules/SqlPreview";
 
 /** "Here is what will run" confirmation before writing pending edits. */
@@ -35,9 +36,7 @@ export default function ApplyDialog({
       <div className="dialog wide">
         <div className="dialog-head">
           <h2>{previewOnly ? t("changes.previewTitle") : t("changes.confirmTitle")}</h2>
-          <Button size="sm" icon onClick={onClose} disabled={busy}>
-            <Icon name="x" size={14} />
-          </Button>
+          <ToolButton icon="x" title={t("common.close")} onClick={onClose} disabled={busy} />
         </div>
         <div className="dialog-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className={`callout ${deletes ? "danger" : "info"}`}>

@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
-import Toggle from "@/components/atoms/Toggle";
+import Input from "@/components/atoms/Input";
+import Spinner from "@/components/atoms/Spinner";
+import Tab from "@/components/atoms/Tab";
+import Dropdown from "@/components/molecules/Dropdown";
+import Field from "@/components/molecules/Field";
+import ToggleRow from "@/components/molecules/ToggleRow";
+import ToolButton from "@/components/molecules/ToolButton";
 import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
@@ -25,8 +31,8 @@ function blank(driver: DriverKind = "postgres"): ConnectionConfig {
     host: "localhost",
     port: driver === "postgres" ? 5432 : driver === "mysql" ? 3306 : 6379,
     user: driver === "postgres" ? "postgres" : driver === "mysql" ? "root" : "",
-    database: "",
-    sslMode: "prefer",
+    database: driver === "redis" ? "0" : "",
+    sslMode: driver === "redis" ? "disable" : "prefer",
     color: null,
     group: null,
     readOnly: false,
@@ -37,7 +43,10 @@ function blank(driver: DriverKind = "postgres"): ConnectionConfig {
   };
 }
 
-/** Create/edit a connection. Test connects once without saving. */
+/**
+ * Create / edit ("Properties") a connection. Two tabs: General and Advanced.
+ * Test connects once without saving.
+ */
 export default function ConnectionDialog() {
   const { t } = useTranslation();
   const dlg = useUi((s) => s.connectionDialog);
@@ -49,10 +58,12 @@ export default function ConnectionDialog() {
   const [busy, setBusy] = useState<"test" | "save" | null>(null);
   const [test, setTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [secretsOk, setSecretsOk] = useState(true);
+  const [tab, setTab] = useState<"general" | "advanced">("general");
+  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
     if (!dlg.open) return;
-    const base = dlg.editing ? { ...dlg.editing } : blank();
+    const base = dlg.editing ? { ...dlg.editing, options: { ...(dlg.editing.options ?? {}) } } : blank();
     if (dlg.clone) {
       base.id = "";
       base.name = `${base.name} copy`;
@@ -63,6 +74,8 @@ export default function ConnectionDialog() {
     setTouchedPw(false);
     setTest(null);
     setBusy(null);
+    setTab("general");
+    setShowPw(false);
     api.secretsAvailable().then(setSecretsOk).catch(() => {});
   }, [dlg]);
 
@@ -76,6 +89,13 @@ export default function ConnectionDialog() {
   if (!dlg.open) return null;
 
   const set = (patch: Partial<ConnectionConfig>) => setForm((f) => ({ ...f, ...patch }));
+  const setOption = (key: string, value: unknown) =>
+    setForm((f) => {
+      const options = { ...(f.options ?? {}) };
+      if (value === "" || value === null || value === undefined) delete options[key];
+      else options[key] = value;
+      return { ...f, options };
+    });
   const setDriver = (driver: DriverKind) => {
     const b = blank(driver);
     set({
@@ -87,10 +107,7 @@ export default function ConnectionDialog() {
       sslMode: driver === "redis" ? "disable" : form.driver === "redis" ? "prefer" : form.sslMode,
     });
   };
-  const input = () => ({
-    ...form,
-    password: touchedPw || dlg.clone ? password : undefined,
-  });
+  const input = () => ({ ...form, password: touchedPw || dlg.clone ? password : undefined });
 
   const doTest = async () => {
     setBusy("test");
@@ -112,7 +129,7 @@ export default function ConnectionDialog() {
       await ws.loadConnections();
       close();
       if (connect) {
-        const ok = await ws.connect(saved.id);
+        const ok = ws.sessions[saved.id]?.status === "open" ? await ws.reconnect(saved.id) : await ws.connect(saved.id);
         if (ok) ws.toast(t("toast.connected", { name: saved.name }), "success");
       }
     } catch (e) {
@@ -123,106 +140,115 @@ export default function ConnectionDialog() {
   };
 
   const isRedis = form.driver === "redis";
+  const editing = !!dlg.editing && !dlg.clone;
+  const sslOptions = [
+    { value: "disable", label: t("connection.sslDisable") },
+    ...(!isRedis ? [{ value: "prefer", label: t("connection.sslPrefer") }] : []),
+    { value: "require", label: t("connection.sslRequire") },
+    { value: "verify", label: t("connection.sslVerify") },
+  ];
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && close()}>
       <div className="dialog">
         <div className="dialog-head">
-          <h2>{dlg.editing && !dlg.clone ? t("connection.edit") : t("connection.new")}</h2>
-          <Button size="sm" icon onClick={close} disabled={!!busy}>
-            <Icon name="x" size={14} />
-          </Button>
+          <h2>{editing ? t("connection.properties") : t("connection.new")}</h2>
+          <div className="pill-tabs">
+            <Tab active={tab === "general"} onClick={() => setTab("general")}>
+              {t("connection.general")}
+            </Tab>
+            <Tab active={tab === "advanced"} onClick={() => setTab("advanced")}>
+              {t("connection.advanced")}
+            </Tab>
+          </div>
+          <ToolButton icon="x" title={t("common.close")} onClick={close} disabled={!!busy} />
         </div>
         <div className="dialog-body">
-          <div className="driver-cards">
-            {DRIVERS.map((d) => (
-              <Button
-                key={d.id}
-                variant="bare"
-                className={`driver-card ${form.driver === d.id ? "active" : ""}`}
-                style={{ ["--card-color" as string]: d.color }}
-                onClick={() => setDriver(d.id)}
-              >
-                <span className="ic">
-                  <Icon name={d.id === "redis" ? "keyRound" : "database"} size={16} />
-                </span>
-                <b>{t(`connection.${d.id}`)}</b>
-                <small>:{d.hint}</small>
-              </Button>
-            ))}
-          </div>
-          <div className="form-grid">
-            <div className="field span2">
-              <label>{t("connection.name")}</label>
-              <input className="input" value={form.name} placeholder={t("connection.namePlaceholder")} onChange={(e) => set({ name: e.target.value })} autoFocus />
-            </div>
-            <div className="field">
-              <label>{t("connection.host")}</label>
-              <input className="input mono" value={form.host} onChange={(e) => set({ host: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>{t("connection.port")}</label>
-              <input className="input mono" type="number" value={form.port} onChange={(e) => set({ port: Number(e.target.value) || 0 })} />
-            </div>
-            <div className="field">
-              <label>{t("connection.user")}</label>
-              <input className="input mono" value={form.user} onChange={(e) => set({ user: e.target.value })} placeholder={isRedis ? "default" : ""} />
-            </div>
-            <div className="field">
-              <label>{t("connection.password")}</label>
-              <input
-                className="input mono"
-                type="password"
-                value={password}
-                placeholder={form.hasPassword && !touchedPw ? "••••••••" : ""}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setTouchedPw(true);
-                }}
-              />
-              {form.hasPassword && <span className="hint">{t("connection.passwordKeep")}</span>}
-            </div>
-            <div className="field">
-              <label>{isRedis ? t("connection.redisDb") : form.driver === "mysql" ? t("connection.databaseOptional") : t("connection.database")}</label>
-              <input className="input mono" value={form.database} onChange={(e) => set({ database: e.target.value })} placeholder={isRedis ? "0" : form.driver === "postgres" ? "postgres" : ""} />
-            </div>
-            <div className="field">
-              <label>{t("connection.ssl")}</label>
-              <select className="select" value={form.sslMode} onChange={(e) => set({ sslMode: e.target.value as SslMode })}>
-                <option value="disable">{t("connection.sslDisable")}</option>
-                {!isRedis && <option value="prefer">{t("connection.sslPrefer")}</option>}
-                <option value="require">{t("connection.sslRequire")}</option>
-                <option value="verify">{t("connection.sslVerify")}</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>{t("connection.color")}</label>
-              <div className="color-swatches">
-                <button type="button" className={`swatch none ${!form.color ? "active" : ""}`} onClick={() => set({ color: null })} title={t("common.none")} />
-                {COLORS.map((c) => (
-                  <button key={c} type="button" className={`swatch ${form.color === c ? "active" : ""}`} style={{ background: c }} onClick={() => set({ color: c })} />
+          {tab === "general" ? (
+            <>
+              <div className="driver-cards">
+                {DRIVERS.map((d) => (
+                  <Button key={d.id} variant="bare" className={`driver-card ${form.driver === d.id ? "active" : ""}`} style={{ ["--card-color" as string]: d.color }} onClick={() => setDriver(d.id)}>
+                    <span className="ic">
+                      <Icon name={d.id === "redis" ? "keyRound" : "database"} size={16} />
+                    </span>
+                    <b>{t(`connection.${d.id}`)}</b>
+                    <small>:{d.hint}</small>
+                  </Button>
                 ))}
               </div>
-            </div>
-            <div className="field">
-              <label>{t("connection.group")}</label>
-              <input className="input" value={form.group ?? ""} placeholder={t("connection.groupPlaceholder")} onChange={(e) => set({ group: e.target.value || null })} />
-            </div>
-            <div className="field span2">
-              <Toggle checked={form.readOnly} onChange={(v) => set({ readOnly: v })} label={t("connection.readOnly")} />
-              <span className="hint">{t("connection.readOnlyHint")}</span>
-            </div>
-            {!secretsOk && (
-              <div className="callout span2">
-                <Icon name="alert" size={16} />
-                <span>{t("connection.keychainWarning")}</span>
+              <div className="form-grid">
+                <Field label={t("connection.name")} span2>
+                  <Input value={form.name} placeholder={t("connection.namePlaceholder")} onChange={(e) => set({ name: e.target.value })} autoFocus />
+                </Field>
+                <Field label={t("connection.host")}>
+                  <Input mono value={form.host} onChange={(e) => set({ host: e.target.value })} />
+                </Field>
+                <Field label={t("connection.port")}>
+                  <Input mono type="number" value={form.port} onChange={(e) => set({ port: Number(e.target.value) || 0 })} />
+                </Field>
+                <Field label={t("connection.user")}>
+                  <Input mono value={form.user} onChange={(e) => set({ user: e.target.value })} placeholder={isRedis ? "default" : ""} />
+                </Field>
+                <Field label={t("connection.password")} hint={form.hasPassword ? t("connection.passwordKeep") : undefined}>
+                  <div className="input-row">
+                    <Input
+                      mono
+                      type={showPw ? "text" : "password"}
+                      value={password}
+                      placeholder={form.hasPassword && !touchedPw ? "••••••••" : ""}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setTouchedPw(true);
+                      }}
+                    />
+                    <ToolButton icon="eye" title={showPw ? t("common.no") : t("common.yes")} active={showPw} onClick={() => setShowPw((v) => !v)} />
+                  </div>
+                </Field>
+                <Field label={isRedis ? t("connection.redisDb") : form.driver === "mysql" ? t("connection.databaseOptional") : t("connection.database")}>
+                  <Input mono value={form.database} onChange={(e) => set({ database: e.target.value })} placeholder={isRedis ? "0" : form.driver === "postgres" ? "postgres" : ""} />
+                </Field>
+                <Field label={t("connection.ssl")}>
+                  <Dropdown value={form.sslMode} options={sslOptions} onChange={(v) => set({ sslMode: v as SslMode })} ariaLabel={t("connection.ssl")} />
+                </Field>
+                <Field label={t("connection.color")}>
+                  <div className="color-swatches">
+                    <button type="button" className={`swatch none ${!form.color ? "active" : ""}`} onClick={() => set({ color: null })} title={t("common.none")} />
+                    {COLORS.map((c) => (
+                      <button key={c} type="button" className={`swatch ${form.color === c ? "active" : ""}`} style={{ background: c }} onClick={() => set({ color: c })} />
+                    ))}
+                  </div>
+                </Field>
+                <Field label={t("connection.group")}>
+                  <Input value={form.group ?? ""} placeholder={t("connection.groupPlaceholder")} onChange={(e) => set({ group: e.target.value || null })} />
+                </Field>
+                {!secretsOk && (
+                  <div className="callout span2">
+                    <Icon name="alert" size={16} />
+                    <span>{t("connection.keychainWarning")}</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="form-grid">
+              <div className="span2">
+                <ToggleRow label={t("connection.readOnly")} desc={`${t("connection.readOnlyHint")}. ${t("connection.readOnlyServer")}`} checked={form.readOnly} onChange={(v) => set({ readOnly: v })} />
+              </div>
+              <Field label={t("connection.connectTimeout")}>
+                <Input mono type="number" min={1} value={(form.options?.connectTimeout as number | undefined) ?? ""} placeholder="15" onChange={(e) => setOption("connectTimeout", e.target.value ? Number(e.target.value) : "")} />
+              </Field>
+              {form.driver === "postgres" && (
+                <Field label={t("connection.applicationName")} hint={t("connection.applicationNameHint")}>
+                  <Input mono value={(form.options?.applicationName as string | undefined) ?? ""} placeholder="Osprey" onChange={(e) => setOption("applicationName", e.target.value)} />
+                </Field>
+              )}
+            </div>
+          )}
         </div>
         <div className="dialog-foot">
           <Button variant="secondary" onClick={() => void doTest()} disabled={!!busy}>
-            {busy === "test" ? <span className="spinner" /> : <Icon name="plugZap" size={14} />}
+            {busy === "test" ? <Spinner /> : <Icon name="plugZap" size={14} />}
             {busy === "test" ? t("connection.testing") : t("connection.test")}
           </Button>
           {test && (
@@ -239,7 +265,7 @@ export default function ConnectionDialog() {
             {t("connection.save")}
           </Button>
           <Button variant="primary" onClick={() => void doSave(true)} disabled={!!busy || !form.host}>
-            {busy === "save" ? <span className="spinner" /> : <Icon name="plug" size={14} />}
+            {busy === "save" ? <Spinner /> : <Icon name="plug" size={14} />}
             {t("connection.saveAndConnect")}
           </Button>
         </div>

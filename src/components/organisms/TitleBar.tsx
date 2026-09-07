@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import Button from "@/components/atoms/Button";
-import type { MenuItem } from "@/components/molecules/ContextMenu";
+import { useContextMenu, type ContextMenuItem } from "@/components/molecules/ContextMenu";
 import { isMac, modKey } from "@/utils/format";
 
 type MenuId = "file" | "edit" | "view" | "help";
@@ -18,15 +18,15 @@ export interface TitleBarProps {
 }
 
 /**
- * Frameless title bar with app menus. On macOS the native traffic lights
- * stay (overlay title bar), so only the menus render; on Windows/Linux the
- * window controls are drawn here.
+ * Frameless title bar with app menus (rendered by the shared ContextMenu so
+ * they look like every other menu). On macOS the native traffic lights stay
+ * (overlay title bar); on Windows/Linux the window controls are drawn here.
  */
 export default function TitleBar(p: TitleBarProps) {
   const { t } = useTranslation();
+  const { openBelow, close } = useContextMenu();
   const [maximized, setMaximized] = useState(false);
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
-  const [anchor, setAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const win = useMemo(() => {
     try {
       return getCurrentWindow();
@@ -46,17 +46,15 @@ export default function TitleBar(p: TitleBarProps) {
     return () => unlisten?.();
   }, [win]);
 
+  // the shared menu closes on outside mousedown; mirror that in our highlight
   useEffect(() => {
     if (!openMenu) return;
-    const close = () => setOpenMenu(null);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenMenu(null);
-    window.addEventListener("mousedown", close);
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("blur", close);
+    const clear = () => setOpenMenu(null);
+    window.addEventListener("mousedown", clear);
+    window.addEventListener("keydown", clear);
     return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("blur", close);
+      window.removeEventListener("mousedown", clear);
+      window.removeEventListener("keydown", clear);
     };
   }, [openMenu]);
 
@@ -68,57 +66,61 @@ export default function TitleBar(p: TitleBarProps) {
     }
   };
 
-  const menus: { id: MenuId; label: string; items: MenuItem[] }[] = [
+  const menus: { id: MenuId; label: string; items: ContextMenuItem[] }[] = [
     {
       id: "file",
       label: t("menu.file"),
       items: [
-        { label: t("menu.newConnection"), shortcut: `${modKey}+N`, action: p.onNewConnection },
-        { label: t("menu.newQuery"), shortcut: `${modKey}+T`, action: p.onNewQuery },
-        { sep: true },
-        { label: t("menu.settings"), shortcut: `${modKey}+,`, action: () => p.onOpenSettings("general") },
-        { sep: true },
-        { label: t("menu.exit"), action: () => win?.close() },
+        { label: t("menu.newConnection"), icon: "plus", shortcut: `${modKey}+N`, onSelect: p.onNewConnection },
+        { label: t("menu.newQuery"), icon: "fileCode", shortcut: `${modKey}+T`, onSelect: p.onNewQuery },
+        { separator: true },
+        { label: t("menu.settings"), icon: "settings", shortcut: `${modKey}+,`, onSelect: () => p.onOpenSettings("general") },
+        { separator: true },
+        { label: t("menu.exit"), onSelect: () => void win?.close() },
       ],
     },
     {
       id: "edit",
       label: t("menu.edit"),
       items: [
-        { label: t("menu.undo"), shortcut: `${modKey}+Z`, action: exec("undo") },
-        { label: t("menu.redo"), shortcut: `${modKey}+Y`, action: exec("redo") },
-        { sep: true },
-        { label: t("menu.cut"), shortcut: `${modKey}+X`, action: exec("cut") },
-        { label: t("menu.copy"), shortcut: `${modKey}+C`, action: exec("copy") },
-        { label: t("menu.paste"), shortcut: `${modKey}+V`, action: exec("paste") },
-        { label: t("menu.selectAll"), shortcut: `${modKey}+A`, action: exec("selectAll") },
+        { label: t("menu.undo"), shortcut: `${modKey}+Z`, onSelect: exec("undo") },
+        { label: t("menu.redo"), shortcut: `${modKey}+Y`, onSelect: exec("redo") },
+        { separator: true },
+        { label: t("menu.cut"), shortcut: `${modKey}+X`, onSelect: exec("cut") },
+        { label: t("menu.copy"), icon: "copy", shortcut: `${modKey}+C`, onSelect: exec("copy") },
+        { label: t("menu.paste"), shortcut: `${modKey}+V`, onSelect: exec("paste") },
+        { label: t("menu.selectAll"), shortcut: `${modKey}+A`, onSelect: exec("selectAll") },
       ],
     },
     {
       id: "view",
       label: t("menu.view"),
       items: [
-        { label: t("menu.toggleSidebar"), shortcut: `${modKey}+B`, action: p.onToggleSidebar },
-        { sep: true },
-        { label: t("menu.zoomIn"), shortcut: `${modKey}+=`, action: () => p.onZoom("in") },
-        { label: t("menu.zoomOut"), shortcut: `${modKey}+-`, action: () => p.onZoom("out") },
-        { label: t("menu.zoomReset"), shortcut: `${modKey}+0`, action: () => p.onZoom("reset") },
+        { label: t("menu.toggleSidebar"), shortcut: `${modKey}+B`, onSelect: p.onToggleSidebar },
+        { separator: true },
+        { label: t("menu.zoomIn"), shortcut: `${modKey}+=`, onSelect: () => p.onZoom("in") },
+        { label: t("menu.zoomOut"), shortcut: `${modKey}+-`, onSelect: () => p.onZoom("out") },
+        { label: t("menu.zoomReset"), shortcut: `${modKey}+0`, onSelect: () => p.onZoom("reset") },
       ],
     },
     {
       id: "help",
       label: t("menu.help"),
       items: [
-        { label: t("menu.checkUpdates"), action: p.onCheckUpdates },
-        { label: t("menu.about"), action: () => p.onOpenSettings("about") },
+        { label: t("menu.checkUpdates"), icon: "download", onSelect: p.onCheckUpdates },
+        { label: t("menu.about"), icon: "info", onSelect: () => p.onOpenSettings("about") },
       ],
     },
   ];
 
-  const openAt = (id: MenuId, el: HTMLElement) => {
-    const r = el.getBoundingClientRect();
-    setAnchor({ x: r.left, y: r.bottom + 2 });
-    setOpenMenu((cur) => (cur === id ? null : id));
+  const show = (m: (typeof menus)[number], el: HTMLElement) => {
+    if (openMenu === m.id) {
+      close();
+      setOpenMenu(null);
+      return;
+    }
+    openBelow(el, m.items);
+    setOpenMenu(m.id);
   };
 
   const controls = !isMac && (
@@ -159,14 +161,15 @@ export default function TitleBar(p: TitleBarProps) {
         </span>
         <span>Osprey</span>
       </div>
-      <div className="menus" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="menus">
         {menus.map((m) => (
           <Button
             key={m.id}
             variant="bare"
             className={`menu-btn ${openMenu === m.id ? "open" : ""}`}
-            onClick={(e) => openAt(m.id, e.currentTarget)}
-            onMouseEnter={(e) => openMenu && openMenu !== m.id && openAt(m.id, e.currentTarget)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => show(m, e.currentTarget)}
+            onMouseEnter={(e) => openMenu && openMenu !== m.id && show(m, e.currentTarget)}
           >
             {m.label}
           </Button>
@@ -175,30 +178,6 @@ export default function TitleBar(p: TitleBarProps) {
       <div className="drag" data-tauri-drag-region onDoubleClick={() => win?.toggleMaximize()} />
       {p.subtitle && <span className="center">{p.subtitle}</span>}
       {controls}
-      {openMenu && (
-        <div className="menu-pop" style={{ left: anchor.x, top: anchor.y }} onMouseDown={(e) => e.stopPropagation()}>
-          {menus
-            .find((m) => m.id === openMenu)!
-            .items.map((it, i) =>
-              it.sep ? (
-                <div key={i} className="menu-sep" />
-              ) : (
-                <Button
-                  key={i}
-                  variant="bare"
-                  className="menu-item"
-                  onClick={() => {
-                    setOpenMenu(null);
-                    it.action?.();
-                  }}
-                >
-                  <span className="grow">{it.label}</span>
-                  {it.shortcut && <span className="shortcut">{it.shortcut}</span>}
-                </Button>
-              ),
-            )}
-        </div>
-      )}
     </div>
   );
 }

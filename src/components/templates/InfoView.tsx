@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
 import Spinner from "@/components/atoms/Spinner";
+import ToolButton from "@/components/molecules/ToolButton";
 import ConnChip from "@/components/molecules/ConnChip";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
@@ -53,9 +53,7 @@ export default function InfoView({ tab }: { tab: Tab }) {
         </div>
         <ConnChip connectionId={tab.connectionId} />
         <span className="grow" />
-        <Button size="sm" onClick={load} title={t("common.refresh")}>
-          <Icon name="refresh" size={14} />
-        </Button>
+        <ToolButton icon="refresh" title={t("common.refresh")} onClick={load} />
       </div>
       <div className="info-view">
         {error && <div className="messages err">{error}</div>}

@@ -4,6 +4,7 @@ import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
 import Icon from "@/components/atoms/Icon";
 import Spinner from "@/components/atoms/Spinner";
+import ToolButton from "@/components/molecules/ToolButton";
 import ConnChip from "@/components/molecules/ConnChip";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
@@ -37,9 +38,7 @@ export default function StructureView({ tab }: { tab: Tab }) {
         </div>
         <ConnChip connectionId={tab.connectionId} />
         <span className="grow" />
-        <Button size="sm" onClick={load} title={t("common.refresh")}>
-          <Icon name="refresh" size={14} />
-        </Button>
+        <ToolButton icon="refresh" title={t("common.refresh")} onClick={load} />
         <Button size="sm" onClick={() => openTab({ kind: "table", connectionId: tab.connectionId, title: table, schema, table })}>
           <Icon name="table" size={14} /> {t("sidebar.openTable")}
         </Button>
@@ -164,9 +163,7 @@ export default function StructureView({ tab }: { tab: Tab }) {
             <section>
               <h3>
                 {t("structure.ddl")}{" "}
-                <Button size="sm" icon onClick={() => void copyText(data.ddl ?? "")} title={t("common.copy")}>
-                  <Icon name="copy" size={13} />
-                </Button>
+                <ToolButton icon="copy" title={t("common.copy")} onClick={() => void copyText(data.ddl ?? "")} />
               </h3>
               <pre className="sql-preview">{data.ddl}</pre>
             </section>

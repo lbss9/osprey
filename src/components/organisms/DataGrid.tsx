@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Icon from "@/components/atoms/Icon";
-import ContextMenu, { type MenuItem } from "@/components/molecules/ContextMenu";
-import { useContextMenu } from "@/hooks/useContextMenu";
+import { useContextMenu, type ContextMenuItem } from "@/components/molecules/ContextMenu";
 import { copyText } from "@/utils/clipboard";
 import { cellEditText, cellText, parseEdited, rowToCsv, rowToJson, rowsToTsv } from "@/utils/format";
 import type { Cell, EditValue, ResultColumn, SortSpec } from "@/types";
@@ -61,7 +60,7 @@ export default function DataGrid(p: DataGridProps) {
   const [anchor, setAnchor] = useState<Pos | null>(null);
   const [editing, setEditing] = useState<(Pos & { text: string; selectAll: boolean }) | null>(null);
   const [widths, setWidths] = useState<number[]>([]);
-  const ctx = useContextMenu();
+  const { open: openMenu } = useContextMenu();
   const editRef = useRef<HTMLInputElement>(null);
 
   /* ------------------------------ column widths ----------------------------- */
@@ -279,32 +278,34 @@ export default function DataGrid(p: DataGridProps) {
     const value = p.rows[r][c];
     const rowsInSel = selRange && inSel(r, c) ? range(selRange.r1, selRange.r2) : [r];
     const deleted = !!p.edits?.deleted.has(r);
-    const items: MenuItem[] = [
-      { label: t("grid.copyCell"), icon: "copy", shortcut: "Ctrl+C", action: () => void copyText(cellText(value)) },
-      { label: t("grid.copyRowJson"), icon: "copy", action: () => void copyText(rowToJson(p.columns, p.rows[r])) },
-      { label: t("grid.copyRowCsv"), icon: "copy", action: () => void copyText(rowToCsv(p.rows[r])) },
-      ...(p.onCopyAsInsert
-        ? [{ label: t("grid.copyRowInsert"), icon: "copy" as const, action: () => void copyText(p.onCopyAsInsert!(p.rows[r])) }]
-        : []),
-      { sep: true },
-      { label: t("grid.viewCell"), icon: "eye", action: () => p.onViewCell?.(r, c), disabled: !p.onViewCell },
-      ...(p.onFilterByValue
-        ? [{ label: t("grid.filterByValue"), icon: "filter" as const, action: () => p.onFilterByValue!(col.name, value) }]
-        : []),
+    const items: ContextMenuItem[] = [
+      { label: t("grid.copyCell"), icon: "copy", shortcut: "Ctrl+C", onSelect: () => void copyText(cellText(value)) },
+      {
+        label: t("grid.copyRow"),
+        icon: "copy",
+        children: [
+          { label: "JSON", onSelect: () => void copyText(rowToJson(p.columns, p.rows[r])) },
+          { label: "CSV", onSelect: () => void copyText(rowToCsv(p.rows[r])) },
+          ...(p.onCopyAsInsert ? [{ label: "INSERT", onSelect: () => void copyText(p.onCopyAsInsert!(p.rows[r])) }] : []),
+        ],
+      },
+      { separator: true },
+      { label: t("grid.viewCell"), icon: "eye", onSelect: () => p.onViewCell?.(r, c), disabled: !p.onViewCell },
+      ...(p.onFilterByValue ? [{ label: t("grid.filterByValue"), icon: "filter" as const, onSelect: () => p.onFilterByValue!(col.name, value) }] : []),
     ];
     if (p.editable) {
       items.push(
-        { sep: true },
-        { label: t("grid.editCell"), icon: "pencil", action: () => startEdit({ r, c }) },
-        { label: t("grid.setNull"), action: () => p.onEdit?.(r, c, null) },
-        { label: t("grid.setDefault"), action: () => p.onEdit?.(r, c, { $default: true }) },
-        { sep: true },
+        { separator: true },
+        { label: t("grid.editCell"), icon: "pencil", shortcut: "Enter", onSelect: () => startEdit({ r, c }) },
+        { label: t("grid.setNull"), shortcut: "Del", onSelect: () => p.onEdit?.(r, c, null) },
+        { label: t("grid.setDefault"), onSelect: () => p.onEdit?.(r, c, { $default: true }) },
+        { separator: true },
         deleted
-          ? { label: t("grid.undeleteRow"), icon: "refresh", action: () => p.onUndeleteRows?.(rowsInSel) }
-          : { label: t("grid.deleteRow"), icon: "trash", danger: true, action: () => p.onDeleteRows?.(rowsInSel) },
+          ? { label: t("grid.undeleteRow"), icon: "refresh", onSelect: () => p.onUndeleteRows?.(rowsInSel) }
+          : { label: t("grid.deleteRow"), icon: "trash", danger: true, onSelect: () => p.onDeleteRows?.(rowsInSel) },
       );
     }
-    ctx.open(e, items);
+    openMenu(e, items);
   };
 
   /* -------------------------------- resizing -------------------------------- */
@@ -441,7 +442,6 @@ export default function DataGrid(p: DataGridProps) {
         </div>
         {p.rows.length === 0 && !p.loading && <div className="grid-empty">{p.emptyText ?? t("grid.empty")}</div>}
       </div>
-      <ContextMenu menu={ctx.menu} onClose={ctx.close} />
     </div>
   );
 }

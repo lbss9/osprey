@@ -50,9 +50,10 @@ export const sessionInfo = (connectionId: string) =>
 
 /* ---------------------------------- schema -------------------------------- */
 
-export const schemaDatabases = (connectionId: string) =>
-  invoke<string[]>("schema_databases", { connectionId });
-export const schemaList = (connectionId: string) => invoke<string[]>("schema_list", { connectionId });
+export const schemaDatabases = (connectionId: string, includeSystem = false) =>
+  invoke<string[]>("schema_databases", { connectionId, includeSystem });
+export const schemaList = (connectionId: string, includeSystem = false) =>
+  invoke<string[]>("schema_list", { connectionId, includeSystem });
 export const schemaTables = (connectionId: string, schema: string) =>
   invoke<TableInfo[]>("schema_tables", { connectionId, schema });
 export const tableColumns = (connectionId: string, schema: string, table: string) =>

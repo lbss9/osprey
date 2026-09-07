@@ -97,11 +97,15 @@ async fn postgres_end_to_end() {
     .unwrap();
 
     // catalog
-    let dbs = d.list_databases().await.unwrap();
+    let dbs = d.list_databases(false).await.unwrap();
     assert!(dbs.iter().any(|x| x == info.database.as_deref().unwrap()));
-    let schemas = d.list_schemas().await.unwrap();
+    let schemas = d.list_schemas(false).await.unwrap();
     assert_eq!(schemas[0], "public");
     assert!(schemas.contains(&"osprey_t".to_string()));
+    assert!(!schemas.contains(&"pg_catalog".to_string()));
+    let all = d.list_schemas(true).await.unwrap();
+    assert!(all.contains(&"pg_catalog".to_string()) && all.contains(&"information_schema".to_string()));
+    assert!(d.list_databases(true).await.unwrap().iter().any(|x| x.starts_with("template")));
     let tables = d.list_tables("osprey_t").await.unwrap();
     let names: Vec<_> = tables.iter().map(|t| (t.name.as_str(), t.kind.as_str())).collect();
     assert!(names.contains(&("people", "table")));
@@ -255,8 +259,11 @@ async fn mysql_end_to_end() {
     // bulk insert through a recursive CTE
     d.execute_transaction(&["INSERT INTO osprey_t.people (name, age, score, active, born, seen, meta, blob_) WITH RECURSIVE g(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM g WHERE n < 900) SELECT CONCAT('person ', n), 20 + (n % 50), n * 1.5, n % 2 = 0, DATE_ADD('2000-01-01', INTERVAL n DAY), NOW(3), JSON_OBJECT('n', n), UNHEX('DEADBEEF') FROM g".into()]).await.unwrap();
 
-    let dbs = d.list_databases().await.unwrap();
+    let dbs = d.list_databases(false).await.unwrap();
     assert!(dbs.contains(&"osprey_t".to_string()) && !dbs.contains(&"mysql".to_string()));
+    let all = d.list_databases(true).await.unwrap();
+    assert!(all.contains(&"mysql".to_string()));
+    assert!(all.iter().position(|x| x == "osprey_t") < all.iter().position(|x| x == "mysql"), "user dbs first: {all:?}");
     let tables = d.list_tables("osprey_t").await.unwrap();
     assert!(tables.iter().any(|t| t.name == "people" && t.kind == "table" && t.comment.as_deref() == Some("test people")));
     assert!(tables.iter().any(|t| t.name == "adults" && t.kind == "view"));

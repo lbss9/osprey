@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Osprey" },
+  "app": {
+    "name": "Osprey"
+  },
   "menu": {
     "file": "File",
     "edit": "Edit",
@@ -22,7 +24,12 @@
     "checkUpdates": "Check for updates",
     "about": "About Osprey"
   },
-  "window": { "minimize": "Minimize", "maximize": "Maximize", "restore": "Restore", "close": "Close" },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -123,7 +130,14 @@
     "testOk": "Connected to {{driver}} {{version}}",
     "save": "Save",
     "saveAndConnect": "Save & connect",
-    "keychainWarning": "The system credential store is unavailable. The password will be kept in Osprey's local database in plain text."
+    "keychainWarning": "The system credential store is unavailable. The password will be kept in Osprey's local database in plain text.",
+    "advanced": "Advanced",
+    "connectTimeout": "Connect timeout (seconds)",
+    "applicationName": "Application name",
+    "applicationNameHint": "Shown in pg_stat_activity",
+    "properties": "Connection properties",
+    "general": "General",
+    "readOnlyServer": "Enforced by the server: every session starts read-only"
   },
   "tabs": {
     "query": "Query",
@@ -159,7 +173,8 @@
     "next": "Next page",
     "addRow": "Add row",
     "readOnly": "This table has no primary key; editing is disabled.",
-    "connectionReadOnly": "This connection is read-only."
+    "connectionReadOnly": "This connection is read-only.",
+    "copyRow": "Copy row as"
   },
   "filters": {
     "add": "Filter",
@@ -332,7 +347,9 @@
     "updateError": "Could not check for updates",
     "aboutText": "A fast, local-first database client for PostgreSQL, MySQL and Redis. Everything stays on your machine.",
     "website": "GitHub",
-    "license": "MIT license"
+    "license": "MIT license",
+    "showSystem": "Show system databases and schemas",
+    "showSystemHint": "pg_catalog, information_schema, templates, mysql, sys…"
   },
   "update": {
     "title": "Osprey {{version}} is ready",
@@ -364,5 +381,48 @@
     "secrets": "Credential store error",
     "io": "File error",
     "unknown": "Unexpected error"
+  },
+  "ctx": {
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "reconnect": "Reconnect",
+    "refresh": "Refresh",
+    "newQuery": "New query",
+    "openKeys": "Browse keys",
+    "openConsole": "Open console",
+    "openInfo": "Server info",
+    "copy": "Copy",
+    "copyHost": "Copy host",
+    "copyUrl": "Copy connection URL",
+    "copyName": "Copy name",
+    "copyQualified": "Copy qualified name",
+    "copySelect": "Copy SELECT statement",
+    "copyColumns": "Copy column list",
+    "properties": "Properties…",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "showSystem": "Show system databases and schemas",
+    "collapseAll": "Collapse all",
+    "expandAll": "Expand all",
+    "newConnection": "New connection…",
+    "refreshAll": "Refresh all",
+    "openData": "Open data",
+    "structure": "Structure",
+    "querySchema": "New query in this schema",
+    "countRows": "Count rows",
+    "exportTable": "Export table…",
+    "truncate": "Truncate table…",
+    "drop": "Drop table…",
+    "truncateConfirm": "Remove every row from {{name}}? This cannot be undone.",
+    "dropConfirm": "Drop {{name}}? The table and its data are deleted permanently.",
+    "truncated": "Table truncated",
+    "dropped": "Table dropped",
+    "rows": "{{name}}: {{count}} rows",
+    "closeTab": "Close",
+    "closeOthers": "Close others",
+    "closeAll": "Close all",
+    "closeRight": "Close tabs to the right",
+    "connection": "Connection",
+    "database": "Database"
   }
 }
