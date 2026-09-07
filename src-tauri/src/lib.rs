@@ -79,6 +79,7 @@ pub fn run() {
             session_info,
             schema_databases,
             schema_list,
+            schema_columns,
             schema_tables,
             table_columns,
             table_structure,

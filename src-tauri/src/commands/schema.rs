@@ -43,6 +43,12 @@ pub async fn schema_tables(
 }
 
 #[tauri::command]
+pub async fn schema_columns(state: State<'_, AppState>, connection_id: String, schema: String) -> CmdResult<Vec<TableColumns>> {
+    let s = state.session(&connection_id).await?.sql()?;
+    Ok(s.schema_columns(&schema).await?)
+}
+
+#[tauri::command]
 pub async fn table_columns(
     state: State<'_, AppState>,
     connection_id: String,

@@ -20,6 +20,8 @@ export interface SessionState {
   databases?: string[];
   schemas?: string[];
   tables: Record<string, TableInfo[] | undefined>;
+  /** schema → table → column names (autocompletion); loaded on demand */
+  columns: Record<string, Record<string, string[]> | undefined>;
   loadingTables: Record<string, boolean>;
   expanded: Record<string, boolean>;
 }
@@ -49,6 +51,8 @@ interface WorkspaceState {
   reloadAllSchemas: () => Promise<void>;
   reconnect: (id: string) => Promise<boolean>;
   loadTables: (id: string, schema: string) => Promise<void>;
+  /** column names of every table in a schema, cached until the schema is refreshed */
+  loadSchemaColumns: (id: string, schema: string) => Promise<void>;
   toggleExpanded: (id: string, key: string, value?: boolean) => void;
   toggleGroup: (name: string) => void;
 
@@ -85,6 +89,20 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
     }
   },
 
+  loadSchemaColumns: async (id, schema) => {
+    if (get().sessions[id]?.columns?.[schema]) return;
+    try {
+      const list = await api.schemaColumns(id, schema);
+      const map: Record<string, string[]> = {};
+      for (const t of list) map[t.table] = t.columns.map((c) => c.name);
+      set((s) => ({
+        sessions: { ...s.sessions, [id]: { ...s.sessions[id], columns: { ...s.sessions[id].columns, [schema]: map } } },
+      }));
+    } catch {
+      // autocompletion only; the editor keeps table names
+    }
+  },
+
   reorderConnections: async (id, beforeId) => {
     const list = get().connections.filter((c) => c.id !== id);
     const moving = get().connections.find((c) => c.id === id);
@@ -107,6 +125,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
         [id]: {
           status: "connecting",
           tables: {},
+          columns: {},
           loadingTables: {},
           expanded: s.sessions[id]?.expanded ?? {},
         },
@@ -125,6 +144,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
             database: info.database ?? database ?? undefined,
             schemas: undefined,
             tables: {},
+          columns: {},
             expanded: { root: true, ...(database ? {} : s.sessions[id]?.expanded ?? {}) },
           },
         },
@@ -197,7 +217,8 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
     for (const [id, sess] of Object.entries(sessions)) {
       if (sess.status !== "open") continue;
       const conn = connections.find((c) => c.id === id);
-      set((s) => ({ sessions: { ...s.sessions, [id]: { ...s.sessions[id], tables: {}, schemas: conn?.driver === "redis" ? undefined : s.sessions[id].schemas } } }));
+      set((s) => ({ sessions: { ...s.sessions, [id]: { ...s.sessions[id], tables: {},
+          columns: {}, schemas: conn?.driver === "redis" ? undefined : s.sessions[id].schemas } } }));
       if (conn?.driver === "redis") continue;
       await get().loadSchemas(id);
       // re-open the schemas the user had expanded
@@ -233,6 +254,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
           [id]: {
             ...s.sessions[id],
             tables: { ...s.sessions[id].tables, [schema]: tables },
+            columns: { ...s.sessions[id].columns, [schema]: undefined },
             loadingTables: { ...s.sessions[id].loadingTables, [schema]: false },
           },
         },

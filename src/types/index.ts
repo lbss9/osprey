@@ -88,6 +88,11 @@ export interface ForeignKeyInfo {
   onDelete?: string | null;
 }
 
+export interface TableColumns {
+  table: string;
+  columns: ColumnInfo[];
+}
+
 export interface TableStructure {
   columns: ColumnInfo[];
   indexes: IndexInfo[];
@@ -348,7 +353,7 @@ export interface AppInfo {
 
 /* ------------------------------ UI-only types ----------------------------- */
 
-export type TabKind = "table" | "query" | "structure" | "redis" | "console" | "info" | "tools";
+export type TabKind = "table" | "query" | "structure" | "redis" | "console" | "info" | "tools" | "diagram";
 
 export interface Tab {
   id: string;

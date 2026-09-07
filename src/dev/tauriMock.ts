@@ -538,6 +538,15 @@ const handlers: Record<string, Handler> = {
       { schema: "public", name: "adults", kind: "view", rowEstimate: null, comment: null },
     ] as TableInfo[];
   },
+  schema_columns: ({ connectionId, schema }) => {
+    session(connectionId as string);
+    if (schema !== "public") return [];
+    return [
+      { table: "people", columns: PEOPLE_META },
+      { table: "orders", columns: ORDERS_META },
+      { table: "adults", columns: PEOPLE_META.map((c) => ({ ...c, primaryKey: false, autoIncrement: false })) },
+    ];
+  },
   table_columns: ({ connectionId, table }) => {
     session(connectionId as string);
     if (table === "orders") return ORDERS_META;
@@ -558,6 +567,7 @@ const handlers: Record<string, Handler> = {
         ddl: null,
       };
     }
+    if (table === "adults") return { columns: PEOPLE_META.map((c) => ({ ...c, primaryKey: false, autoIncrement: false, default: null })), indexes: [], foreignKeys: [], ddl: null };
     return {
       columns: PEOPLE_META,
       indexes: [{ name: "people_pkey", columns: ["id"], unique: true, primary: true, definition: null }],

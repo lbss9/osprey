@@ -166,6 +166,16 @@ pub struct ForeignKeyInfo {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Every column of every table in a schema (autocompletion, ER diagram).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TableColumns {
+    pub table: String,
+    pub columns: Vec<ColumnInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TableStructure {
     pub columns: Vec<ColumnInfo>,
     pub indexes: Vec<IndexInfo>,

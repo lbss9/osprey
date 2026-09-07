@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { modKey } from "@/utils/format";
 import Toasts from "@/components/molecules/Toasts";
 import ConnectionDialog from "@/components/organisms/ConnectionDialog";
 import SettingsDialog from "@/components/organisms/SettingsDialog";
@@ -112,11 +113,11 @@ export default function App() {
   }, [ui, ws, newQuery, zoom, t]);
 
   const paletteActions: PaletteItem[] = [
-    { id: "a:new-conn", label: t("menu.newConnection"), group: t("palette.actions"), icon: "plus", shortcut: "Ctrl+N", run: () => ui.openConnectionDialog(null) },
-    { id: "a:new-query", label: t("menu.newQuery"), group: t("palette.actions"), icon: "fileCode", shortcut: "Ctrl+T", run: newQuery },
-    { id: "a:settings", label: t("menu.settings"), group: t("palette.actions"), icon: "settings", shortcut: "Ctrl+,", run: () => ui.openSettings("general") },
-    { id: "a:sidebar", label: t("menu.toggleSidebar"), group: t("palette.actions"), icon: "layers", shortcut: "Ctrl+B", run: () => ui.set({ showSidebar: !ui.showSidebar }) },
-    { id: "a:refresh", label: t("common.refresh"), group: t("palette.actions"), icon: "refresh", shortcut: "Ctrl+R", run: () => window.dispatchEvent(new CustomEvent("osprey-refresh")) },
+    { id: "a:new-conn", label: t("menu.newConnection"), group: t("palette.actions"), icon: "plus", shortcut: `${modKey}+N`, run: () => ui.openConnectionDialog(null) },
+    { id: "a:new-query", label: t("menu.newQuery"), group: t("palette.actions"), icon: "fileCode", shortcut: `${modKey}+T`, run: newQuery },
+    { id: "a:settings", label: t("menu.settings"), group: t("palette.actions"), icon: "settings", shortcut: `${modKey}+,`, run: () => ui.openSettings("general") },
+    { id: "a:sidebar", label: t("menu.toggleSidebar"), group: t("palette.actions"), icon: "layers", shortcut: `${modKey}+B`, run: () => ui.set({ showSidebar: !ui.showSidebar }) },
+    { id: "a:refresh", label: t("common.refresh"), group: t("palette.actions"), icon: "refresh", shortcut: `${modKey}+R`, run: () => window.dispatchEvent(new CustomEvent("osprey-refresh")) },
     { id: "a:theme-dark", label: `${t("settings.theme")}: ${t("settings.themeDark")}`, group: t("palette.actions"), icon: "circle", run: () => ui.set({ theme: "dark" }) },
     { id: "a:theme-light", label: `${t("settings.theme")}: ${t("settings.themeLight")}`, group: t("palette.actions"), icon: "circle", run: () => ui.set({ theme: "light" }) },
     { id: "a:theme-auto", label: `${t("settings.theme")}: ${t("settings.themeAuto")}`, group: t("palette.actions"), icon: "circle", run: () => ui.set({ theme: "auto" }) },
@@ -131,7 +132,7 @@ export default function App() {
         void ws.reloadAllSchemas();
       },
     },
-    { id: "a:close-tab", label: t("ctx.closeTab"), group: t("palette.actions"), icon: "x", shortcut: "Ctrl+W", run: () => ws.activeTabId && ws.closeTab(ws.activeTabId) },
+    { id: "a:close-tab", label: t("ctx.closeTab"), group: t("palette.actions"), icon: "x", shortcut: `${modKey}+W`, run: () => ws.activeTabId && ws.closeTab(ws.activeTabId) },
     { id: "a:about", label: t("menu.about"), group: t("palette.actions"), icon: "info", run: () => ui.openSettings("about") },
   ];
 

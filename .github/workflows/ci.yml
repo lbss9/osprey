@@ -53,7 +53,7 @@ jobs:
       - name: UI tests (Playwright on the mocked backend)
         run: |
           npx playwright install --with-deps chromium
-          npx playwright test
+          npx playwright test --project chromium
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4

@@ -244,6 +244,48 @@ impl SqlDriver for PgDriver {
             .collect())
     }
 
+    async fn schema_columns(&self, schema: &str) -> AppResult<Vec<TableColumns>> {
+        let rows = self
+            .rows_text(
+                "SELECT c.relname::text,
+                        a.attname::text,
+                        format_type(a.atttypid, a.atttypmod)::text,
+                        (NOT a.attnotnull)::text,
+                        pg_get_expr(d.adbin, d.adrelid)::text,
+                        a.attnum::text,
+                        EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = a.attrelid AND i.indisprimary AND a.attnum = ANY(i.indkey))::text,
+                        ((a.attidentity <> '') OR COALESCE(pg_get_expr(d.adbin, d.adrelid) LIKE 'nextval(%', false))::text,
+                        col_description(a.attrelid, a.attnum)::text
+                 FROM pg_attribute a
+                 JOIN pg_class c ON c.oid = a.attrelid
+                 JOIN pg_namespace n ON n.oid = c.relnamespace
+                 LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+                 WHERE n.nspname = $1 AND c.relkind IN ('r','v','m','f','p') AND a.attnum > 0 AND NOT a.attisdropped
+                 ORDER BY c.relname, a.attnum",
+                &[&schema],
+            )
+            .await?;
+        let mut out: Vec<TableColumns> = Vec::new();
+        for r in rows {
+            let table = s(&r[0]);
+            let col = ColumnInfo {
+                name: s(&r[1]),
+                data_type: s(&r[2]),
+                nullable: s(&r[3]) == "true",
+                default: r[4].clone(),
+                position: s(&r[5]).parse().unwrap_or(0),
+                primary_key: s(&r[6]) == "true",
+                auto_increment: s(&r[7]) == "true",
+                comment: r[8].clone(),
+            };
+            match out.last_mut() {
+                Some(t) if t.table == table => t.columns.push(col),
+                _ => out.push(TableColumns { table, columns: vec![col] }),
+            }
+        }
+        Ok(out)
+    }
+
     async fn structure(&self, schema: &str, table: &str) -> AppResult<TableStructure> {
         let columns = self.columns(schema, table).await?;
         let idx = self

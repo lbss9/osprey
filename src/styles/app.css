@@ -1894,7 +1894,9 @@ kbd {
 .settings-layout {
   display: grid;
   grid-template-columns: 170px 1fr;
-  min-height: 420px;
+  /* fixed: the dialog must not resize when switching tabs */
+  height: min(520px, 78vh);
+  min-height: 0;
 }
 .settings-nav {
   border-right: 1px solid var(--line);
@@ -1918,6 +1920,7 @@ kbd {
 .settings-pane {
   padding: 18px 22px;
   overflow: auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -3026,4 +3029,75 @@ kbd {
 }
 .tab.drag-over {
   box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.editor-loading {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+/* ------------------------------- ER diagram ------------------------------- */
+.erd {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--bg);
+  cursor: grab;
+  user-select: none;
+}
+.erd:active {
+  cursor: grabbing;
+}
+.erd-svg {
+  display: block;
+}
+.erd-svg text {
+  font-family: var(--sans);
+  font-size: 12px;
+  pointer-events: none;
+}
+.erd-card {
+  fill: var(--panel);
+  stroke: var(--line-2);
+}
+.erd-head {
+  fill: var(--panel-3);
+}
+.erd-node {
+  cursor: move;
+}
+.erd-node.selected .erd-card {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.erd-title {
+  fill: var(--text);
+  font-weight: 600;
+}
+.erd-col {
+  fill: var(--text-soft);
+  font-family: var(--mono) !important;
+}
+.erd-type {
+  fill: var(--text-faint);
+  font-size: 10px !important;
+  font-family: var(--mono) !important;
+}
+.erd-pk {
+  fill: var(--amber);
+  font-weight: 700;
+}
+.erd-fk {
+  fill: var(--accent);
+  font-weight: 700;
+}
+.erd-link {
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 1.5;
 }

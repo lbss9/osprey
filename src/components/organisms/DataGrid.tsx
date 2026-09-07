@@ -5,7 +5,7 @@ import Icon from "@/components/atoms/Icon";
 import { useContextMenu, type ContextMenuItem } from "@/components/molecules/ContextMenu";
 import { copyText } from "@/utils/clipboard";
 import { useUi } from "@/store/ui";
-import { cellEditText, cellText, displayText, parseEdited, rowToCsv, rowToJson, rowsToTsv } from "@/utils/format";
+import { cellEditText, cellText, displayText, parseEdited, rowToCsv, rowToJson, rowsToTsv, modKey } from "@/utils/format";
 import type { Cell, EditValue, ResultColumn, SortSpec } from "@/types";
 
 const ROW_H = 28;
@@ -283,7 +283,7 @@ export default function DataGrid(p: DataGridProps) {
     const rowsInSel = selRange && inSel(r, c) ? range(selRange.r1, selRange.r2) : [r];
     const deleted = !!p.edits?.deleted.has(r);
     const items: ContextMenuItem[] = [
-      { label: t("grid.copyCell"), icon: "copy", shortcut: "Ctrl+C", onSelect: () => void copyText(cellText(value)) },
+      { label: t("grid.copyCell"), icon: "copy", shortcut: `${modKey}+C`, onSelect: () => void copyText(cellText(value)) },
       {
         label: t("grid.copyRow"),
         icon: "copy",

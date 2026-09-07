@@ -224,6 +224,36 @@ impl SqlDriver for MysqlDriver {
             .collect())
     }
 
+    async fn schema_columns(&self, schema: &str) -> AppResult<Vec<TableColumns>> {
+        let d = Dialect::Mysql;
+        let rows = self
+            .text_rows(&format!(
+                "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT, EXTRA, COLUMN_COMMENT, ORDINAL_POSITION
+                 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = {} ORDER BY TABLE_NAME, ORDINAL_POSITION",
+                d.quote_literal(schema)
+            ))
+            .await?;
+        let mut out: Vec<TableColumns> = Vec::new();
+        for r in rows {
+            let table = s(&r[0]);
+            let col = ColumnInfo {
+                name: s(&r[1]),
+                data_type: s(&r[2]),
+                nullable: s(&r[3]).eq_ignore_ascii_case("YES"),
+                primary_key: s(&r[4]) == "PRI",
+                default: r[5].clone(),
+                auto_increment: s(&r[6]).to_ascii_lowercase().contains("auto_increment"),
+                comment: r[7].clone().filter(|c| !c.is_empty()),
+                position: s(&r[8]).parse().unwrap_or(0),
+            };
+            match out.last_mut() {
+                Some(t) if t.table == table => t.columns.push(col),
+                _ => out.push(TableColumns { table, columns: vec![col] }),
+            }
+        }
+        Ok(out)
+    }
+
     async fn structure(&self, schema: &str, table: &str) -> AppResult<TableStructure> {
         let d = Dialect::Mysql;
         let columns = self.columns(schema, table).await?;

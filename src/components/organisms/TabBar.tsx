@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { modKey } from "@/utils/format";
 import Button from "@/components/atoms/Button";
 import Icon, { type IconName } from "@/components/atoms/Icon";
 import { useContextMenu } from "@/components/molecules/ContextMenu";
@@ -17,6 +18,7 @@ const ICON: Record<Tab["kind"], IconName> = {
   console: "terminal",
   info: "info",
   tools: "zap",
+  diagram: "tree",
 };
 
 export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
@@ -81,7 +83,7 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
               onAuxClick={(e) => e.button === 1 && void tryClose(tab)}
               onContextMenu={(e) =>
                 open(e, [
-                  { label: t("ctx.closeTab"), icon: "x", shortcut: "Ctrl+W", onSelect: () => void tryClose(tab) },
+                  { label: t("ctx.closeTab"), icon: "x", shortcut: `${modKey}+W`, onSelect: () => void tryClose(tab) },
                   { label: t("ctx.closeOthers"), onSelect: () => closeOthers(tab.id), disabled: tabs.length < 2 },
                   { label: t("ctx.closeRight"), onSelect: () => closeRight(tab), disabled: i === tabs.length - 1 },
                   { label: t("ctx.closeAll"), onSelect: closeAll },
@@ -111,7 +113,7 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
         })}
       </div>
       <div className="tab-actions">
-        <ToolButton icon="plus" title={`${t("menu.newQuery")} (Ctrl+T)`} onClick={onNewQuery} />
+        <ToolButton icon="plus" title={`${t("menu.newQuery")} (${modKey}+T)`} onClick={onNewQuery} />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import Resizer from "@/components/atoms/Resizer";
 import Sidebar from "@/components/organisms/Sidebar";
 import TabBar from "@/components/organisms/TabBar";
 import ConsoleView from "@/components/templates/ConsoleView";
+import DiagramView from "@/components/templates/DiagramView";
 import InfoView from "@/components/templates/InfoView";
 import QueryView from "@/components/templates/QueryView";
 import RedisToolsView from "@/components/templates/RedisToolsView";
@@ -29,6 +30,8 @@ function View({ tab }: { tab: Tab }) {
       return <InfoView tab={tab} />;
     case "tools":
       return <RedisToolsView tab={tab} />;
+    case "diagram":
+      return <DiagramView tab={tab} />;
   }
 }
 

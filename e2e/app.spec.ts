@@ -446,6 +446,12 @@ test.describe("shell", () => {
     await page.keyboard.press("Control+,");
     const dialog = page.locator(".dialog");
     await expect(dialog.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await page.waitForTimeout(400); // open animation
+    const h0 = (await dialog.boundingBox())!.height;
+    await dialog.getByRole("button", { name: "Appearance" }).click();
+    expect((await dialog.boundingBox())!.height).toBe(h0);
+    await dialog.getByRole("button", { name: "About" }).click();
+    expect((await dialog.boundingBox())!.height).toBe(h0);
     await dialog.getByRole("button", { name: "Appearance" }).click();
     await dialog.getByRole("button", { name: "Light" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -556,6 +562,39 @@ test.describe("shell", () => {
     expect(off.some((v) => /^\d{4}-\d{2}-\d{2}/.test(v))).toBe(true);
     void raw;
     void cell;
+  });
+
+  test("ER diagram draws tables and foreign keys, exports SVG", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.locator(".sidebar").getByText("public", { exact: true }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "ER diagram" }).click();
+    await expect(page.locator(".erd-node")).toHaveCount(3);
+    await expect(page.locator(".erd-link")).toHaveCount(1);
+    await expect(page.locator(".erd-node[data-table='orders']")).toContainText("FK");
+    await expect(page.locator(".badge", { hasText: "1 relations" })).toBeVisible();
+    // dragging a card moves it
+    const card = page.locator(".erd-node[data-table='people'] .erd-card");
+    const before = (await card.boundingBox())!;
+    await page.mouse.move(before.x + 40, before.y + 12);
+    await page.mouse.down();
+    await page.mouse.move(before.x + 140, before.y + 92, { steps: 4 });
+    await page.mouse.up();
+    const after = (await card.boundingBox())!;
+    expect(after.x).toBeGreaterThan(before.x + 50);
+    // double-click opens the table
+    await page.locator(".erd-node[data-table='people']").dblclick();
+    await expect(page.locator(".tabbar .tab.active .t-label")).toHaveText("people");
+  });
+
+  test("query editor completes column names", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.keyboard.press("Control+t");
+    await page.locator(".cm-content").click();
+    await page.keyboard.type("SELECT people.em");
+    await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("email");
+    await page.keyboard.press("Escape");
   });
 
   test("tabs close with confirmation when dirty", async ({ page }) => {

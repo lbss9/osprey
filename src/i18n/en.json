@@ -538,5 +538,19 @@
     "message": "message",
     "publish": "Publish",
     "published": "Delivered to {{count}} subscribers"
+  },
+  "diagram": {
+    "title": "ER diagram",
+    "short": "diagram",
+    "tables": "{{count}} tables",
+    "links": "{{count}} relations",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "relayout": "Rearrange",
+    "export": "Export SVG",
+    "exported": "Diagram saved",
+    "loading": "Reading table structures…",
+    "empty": "No tables in this schema",
+    "more": "+{{count}} more columns"
   }
 }

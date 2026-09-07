@@ -538,5 +538,19 @@
     "message": "mensagem",
     "publish": "Publicar",
     "published": "Entregue a {{count}} assinantes"
+  },
+  "diagram": {
+    "title": "Diagrama ER",
+    "short": "diagrama",
+    "tables": "{{count}} tabelas",
+    "links": "{{count}} relações",
+    "zoomIn": "Aproximar",
+    "zoomOut": "Afastar",
+    "relayout": "Reorganizar",
+    "export": "Exportar SVG",
+    "exported": "Diagrama salvo",
+    "loading": "Lendo a estrutura das tabelas…",
+    "empty": "Nenhuma tabela neste schema",
+    "more": "+{{count}} colunas"
   }
 }

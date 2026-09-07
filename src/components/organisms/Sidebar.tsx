@@ -12,7 +12,7 @@ import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
 import { copyText } from "@/utils/clipboard";
 import { confirmDialog } from "@/utils/dialog";
-import { formatNumber, quoteIdent } from "@/utils/format";
+import { formatNumber, quoteIdent, modKey } from "@/utils/format";
 import type { ConnectionConfig, TableInfo } from "@/types";
 
 const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)", sqlite: "var(--sqlite)" };
@@ -54,7 +54,7 @@ export default function Sidebar() {
   };
 
   const emptyMenu = (): ContextMenuItem[] => [
-    { label: t("ctx.newConnection"), icon: "plus", shortcut: "Ctrl+N", onSelect: () => openConnectionDialog(null) },
+    { label: t("ctx.newConnection"), icon: "plus", shortcut: `${modKey}+N`, onSelect: () => openConnectionDialog(null) },
     { label: t("ctx.refreshAll"), icon: "refresh", onSelect: () => void reloadAllSchemas() },
     { separator: true },
     { label: t("ctx.showSystem"), checked: showSystem, onSelect: toggleSystem },
@@ -64,7 +64,7 @@ export default function Sidebar() {
     <div className="sidebar">
       <div className="sidebar-head">
         <span className="title">{t("sidebar.connections")}</span>
-        <ToolButton icon="plus" title={`${t("menu.newConnection")} (Ctrl+N)`} onClick={() => openConnectionDialog(null)} />
+        <ToolButton icon="plus" title={`${t("menu.newConnection")} (${modKey}+N)`} onClick={() => openConnectionDialog(null)} />
       </div>
       <div className="sidebar-search">
         <Icon name="search" size={14} />
@@ -174,7 +174,7 @@ function ConnectionNode({
       items.push(
         { label: t("ctx.disconnect"), icon: "unplug", onSelect: () => void ws.disconnect(conn.id) },
         { label: t("ctx.reconnect"), icon: "plugZap", onSelect: () => void ws.reconnect(conn.id) },
-        { label: t("ctx.refresh"), icon: "refresh", shortcut: "Ctrl+R", onSelect: () => void ws.reconnect(conn.id) },
+        { label: t("ctx.refresh"), icon: "refresh", shortcut: `${modKey}+R`, onSelect: () => void ws.reconnect(conn.id) },
         { separator: true },
       );
       if (isRedis) {
@@ -186,7 +186,7 @@ function ConnectionNode({
         );
       } else {
         items.push(
-          { label: t("ctx.newQuery"), icon: "fileCode", shortcut: "Ctrl+T", onSelect: () => openQuery() },
+          { label: t("ctx.newQuery"), icon: "fileCode", shortcut: `${modKey}+T`, onSelect: () => openQuery() },
           { label: t("ctx.openInfo"), icon: "info", onSelect: () => ws.openTab({ kind: "info", connectionId: conn.id, title: t("tabs.info") }) },
           { label: t("ctx.showSystem"), checked: showSystem, onSelect: onToggleSystem },
         );
@@ -327,6 +327,7 @@ function SqlNodes({ conn, session, filter, onQuery }: { conn: ConnectionConfig; 
         ]
       : []),
     { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, schema) },
+    { label: t("diagram.title"), icon: "tree", onSelect: () => ws.openTab({ kind: "diagram", connectionId: conn.id, schema, title: `${schema} · ${t("diagram.short")}` }) },
     { label: t("ctx.querySchema"), icon: "fileCode", onSelect: () => onQuery(conn.driver === "postgres" ? `SET search_path TO ${quoteIdent(schema, conn.driver)};\n` : `USE ${quoteIdent(schema, conn.driver)};\n`) },
     { separator: true },
     { label: t("ctx.copyName"), icon: "copy", onSelect: () => void copyText(schema) },

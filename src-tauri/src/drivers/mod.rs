@@ -35,6 +35,16 @@ pub trait SqlDriver: Send + Sync {
     async fn list_schemas(&self, include_system: bool) -> AppResult<Vec<String>>;
     async fn list_tables(&self, schema: &str) -> AppResult<Vec<TableInfo>>;
     async fn columns(&self, schema: &str, table: &str) -> AppResult<Vec<ColumnInfo>>;
+    /// All columns of a schema in one go. Drivers with a catalog override this
+    /// with a single query; the default walks `tables()` + `columns()`.
+    async fn schema_columns(&self, schema: &str) -> AppResult<Vec<TableColumns>> {
+        let mut out = Vec::new();
+        for t in self.tables(schema).await? {
+            let columns = self.columns(schema, &t.name).await?;
+            out.push(TableColumns { table: t.name, columns });
+        }
+        Ok(out)
+    }
     async fn structure(&self, schema: &str, table: &str) -> AppResult<TableStructure>;
     /// Run arbitrary SQL (possibly several statements) and return one result
     /// set per statement. Rows beyond `max_rows` are dropped and flagged.

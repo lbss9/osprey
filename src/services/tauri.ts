@@ -27,6 +27,7 @@ import type {
   SavedQuery,
   ServerInfo,
   SlowlogEntry,
+  TableColumns,
   TableInfo,
   TablePageRequest,
   TableStructure,
@@ -63,6 +64,8 @@ export const schemaList = (connectionId: string, includeSystem = false) =>
   invoke<string[]>("schema_list", { connectionId, includeSystem });
 export const schemaTables = (connectionId: string, schema: string) =>
   invoke<TableInfo[]>("schema_tables", { connectionId, schema });
+export const schemaColumns = (connectionId: string, schema: string) =>
+  invoke<TableColumns[]>("schema_columns", { connectionId, schema });
 export const tableColumns = (connectionId: string, schema: string, table: string) =>
   invoke<ColumnInfo[]>("table_columns", { connectionId, schema, table });
 export const tableStructure = (connectionId: string, schema: string, table: string) =>

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const ValueDialog = lazy(() => import("@/components/molecules/ValueDialog"));
 import { useTranslation } from "react-i18next";
 import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
@@ -9,14 +11,13 @@ import ApplyDialog from "@/components/molecules/ApplyDialog";
 import ConnChip from "@/components/molecules/ConnChip";
 import ExportMenu from "@/components/molecules/ExportMenu";
 import StatusBar from "@/components/molecules/StatusBar";
-import ValueDialog from "@/components/molecules/ValueDialog";
 import DataGrid, { type GridEdits } from "@/components/organisms/DataGrid";
 import FilterBar from "@/components/organisms/FilterBar";
 import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
-import { cellText, formatDuration, formatNumber, quoteIdent, rowToInsert } from "@/utils/format";
+import { cellText, formatDuration, formatNumber, quoteIdent, rowToInsert, modKey } from "@/utils/format";
 import type { Cell, ColumnInfo, EditValue, ResultSet, RowChange, SortSpec, Tab, TableFilter, TablePageRequest } from "@/types";
 
 interface Edits {
@@ -280,7 +281,7 @@ export default function TableView({ tab }: { tab: Tab }) {
           <Icon name="filter" size={14} /> {t("filters.add")}
           {activeFilterCount > 0 && <Badge tone="accent">{activeFilterCount}</Badge>}
         </Button>
-        <ToolButton icon="refresh" title={`${t("common.refresh")} (Ctrl+R)`} onClick={() => void load()} busy={loading} />
+        <ToolButton icon="refresh" title={`${t("common.refresh")} (${modKey}+R)`} onClick={() => void load()} busy={loading} />
         <ExportMenu columns={columns} rows={baseRows} baseName={table} table={qualified} />
         <span className="sep" />
         <Button size="sm" onClick={() => openTab({ kind: "structure", connectionId: tab.connectionId, title: table, schema, table })}>
@@ -329,7 +330,7 @@ export default function TableView({ tab }: { tab: Tab }) {
           <Button size="sm" variant="ghost" onClick={discard}>
             {t("changes.discard")}
           </Button>
-          <Button size="sm" variant="success" onClick={() => void openPreview(false)} title="Ctrl+S">
+          <Button size="sm" variant="success" onClick={() => void openPreview(false)} title={`${modKey}+S`}>
             <Icon name="check" size={14} /> {t("changes.apply")}
           </Button>
         </div>
@@ -382,6 +383,7 @@ export default function TableView({ tab }: { tab: Tab }) {
         />
       )}
       {viewer && columns[viewer.c] && (
+        <Suspense fallback={null}>
         <ValueDialog
           title={`${table}.${columns[viewer.c].name}`}
           value={cellText(rows[viewer.r]?.[viewer.c] ?? null)}
@@ -392,6 +394,7 @@ export default function TableView({ tab }: { tab: Tab }) {
           }}
           onClose={() => setViewer(null)}
         />
+        </Suspense>
       )}
     </div>
   );

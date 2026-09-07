@@ -19,7 +19,11 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  snapshotPathTemplate: "{testDir}/__screenshots__/{platform}/{arg}{ext}",
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /visual\.spec\.ts/ },
+    { name: "visual", use: { ...devices["Desktop Chrome"] }, testMatch: /visual\.spec\.ts/ },
+  ],
   webServer: {
     command: "npm run dev",
     port: 1430,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SQLNamespace } from "@codemirror/lang-sql";
 import Button from "@/components/atoms/Button";
@@ -12,16 +12,19 @@ import ConnChip from "@/components/molecules/ConnChip";
 import ExportMenu from "@/components/molecules/ExportMenu";
 import PromptDialog from "@/components/molecules/PromptDialog";
 import StatusBar from "@/components/molecules/StatusBar";
-import ValueDialog from "@/components/molecules/ValueDialog";
 import DataGrid from "@/components/organisms/DataGrid";
 import ExplainPanel from "@/components/organisms/ExplainPanel";
 import HistoryPanel from "@/components/organisms/HistoryPanel";
-import SqlEditor, { type SqlEditorHandle } from "@/components/organisms/SqlEditor";
+import type { SqlEditorHandle } from "@/components/organisms/SqlEditor";
+
+// CodeMirror is loaded on first use so the shell starts without it
+const SqlEditor = lazy(() => import("@/components/organisms/SqlEditor"));
+const ValueDialog = lazy(() => import("@/components/molecules/ValueDialog"));
 import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
-import { cellText, formatDuration, formatNumber } from "@/utils/format";
+import { cellText, formatDuration, formatNumber, modKey } from "@/utils/format";
 import type { ExplainResult, ResultSet, Tab } from "@/types";
 
 /** SQL editor on top, results below. Ctrl+Enter runs the selection or all. */
@@ -55,11 +58,20 @@ export default function QueryView({ tab }: { tab: Tab }) {
     for (const [schema, tables] of Object.entries(session?.tables ?? {})) {
       if (!tables) continue;
       ns[schema] = {};
-      for (const tb of tables) ns[schema][tb.name] = [];
+      const cols = session?.columns?.[schema];
+      for (const tb of tables) ns[schema][tb.name] = cols?.[tb.name] ?? [];
     }
     return ns;
-  }, [session?.tables]);
+  }, [session?.tables, session?.columns]);
   const defaultSchema = session?.schemas?.[0];
+  const loadSchemaColumns = useWorkspace((s) => s.loadSchemaColumns);
+  // column names for every schema whose tables are listed (one request per schema, cached)
+  useEffect(() => {
+    if (!session || session.status !== "open") return;
+    for (const [schema, tables] of Object.entries(session.tables)) {
+      if (tables && !session.columns?.[schema]) void loadSchemaColumns(tab.connectionId, schema);
+    }
+  }, [session, loadSchemaColumns, tab.connectionId]);
 
   const run = useCallback(async () => {
     if (running) return;
@@ -125,7 +137,7 @@ export default function QueryView({ tab }: { tab: Tab }) {
   return (
     <div className="query-view">
       <div className="toolbar">
-        <Button size="sm" variant="primary" onClick={() => void run()} disabled={running} title={`${t("query.run")} (Ctrl+Enter)`}>
+        <Button size="sm" variant="primary" onClick={() => void run()} disabled={running} title={`${t("query.run")} (${modKey}+Enter)`}>
           {running ? <Spinner /> : <Icon name="play" size={13} />} {t("query.run")}
         </Button>
         {running && (
@@ -154,12 +166,13 @@ export default function QueryView({ tab }: { tab: Tab }) {
           onChange={(v) => setLimit(Number(v))}
           ariaLabel={t("query.limit")}
         />
-        <ToolButton icon="save" title={`${t("query.saveQuery")} (Ctrl+Shift+S)`} onClick={() => setSaving(true)} disabled={!(tab.sql ?? "").trim()} />
+        <ToolButton icon="save" title={`${t("query.saveQuery")} (${modKey}+Shift+S)`} onClick={() => setSaving(true)} disabled={!(tab.sql ?? "").trim()} />
         <ToolButton icon="history" title={t("query.history")} active={showHistory} onClick={() => setShowHistory((v) => !v)} />
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
           <div className="query-editor" style={{ height: editorH }}>
+            <Suspense fallback={<div className="editor-loading"><Spinner /></div>}>
             <SqlEditor
               ref={editor}
               value={tab.sql ?? ""}
@@ -170,6 +183,7 @@ export default function QueryView({ tab }: { tab: Tab }) {
               defaultSchema={defaultSchema}
               placeholder={t("query.placeholder")}
             />
+            </Suspense>
           </div>
           <Resizer direction="horizontal" onDrag={(d) => setEditorH((h) => Math.max(80, h + d))} />
           <div className="query-results">
@@ -260,11 +274,13 @@ export default function QueryView({ tab }: { tab: Tab }) {
         />
       )}
       {viewer && current && (
+        <Suspense fallback={null}>
         <ValueDialog
           title={current.columns[viewer.c]?.name ?? ""}
           value={cellText(current.rows[viewer.r]?.[viewer.c] ?? null)}
           onClose={() => setViewer(null)}
         />
+        </Suspense>
       )}
     </div>
   );
