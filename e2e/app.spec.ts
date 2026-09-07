@@ -264,6 +264,30 @@ test.describe("structure editor", () => {
   });
 });
 
+test.describe("csv import", () => {
+  test("previews, maps columns and imports into people", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.locator(".sidebar").getByText("people", { exact: true }).click({ button: "right" });
+    await menu(page).getByText("Import CSV…").click();
+    const dlg = page.locator(".dialog");
+    // in the browser the file picker is a prompt
+    page.once("dialog", (d) => d.accept("C:/tmp/people.csv"));
+    await dlg.getByRole("button", { name: "Browse…" }).click();
+    await expect(dlg.locator(".import-map-row")).toHaveCount(3);
+    // auto-mapped by name: Name → name, Age → age, Email → email
+    await expect(dlg.locator(".import-map-row").nth(0).locator(".dd-value")).toHaveText("name");
+    await expect(dlg.locator(".import-map-row").nth(2).locator(".dd-value")).toHaveText("email");
+    await expect(dlg.locator(".badge", { hasText: "2 rows" })).toBeVisible();
+    await expect(dlg.locator(".g-row")).toHaveCount(2);
+    await dlg.getByRole("button", { name: "Import", exact: true }).click();
+    await expect(page.locator(".toast.success")).toContainText("2 rows imported");
+    await expect(dlg).toBeHidden();
+    await openTable(page, "people");
+    await expect(page.locator(".statusbar")).toContainText("of 242");
+  });
+});
+
 test.describe("query view", () => {
   test("runs SQL with Ctrl+Enter, shows results, messages and errors", async ({ page }) => {
     await openApp(page);

@@ -35,6 +35,7 @@ interface UiState {
   settingsTab: string;
   paletteOpen: boolean;
   ddlDialog: DdlDialogState | null;
+  importDialog: { connectionId: string; schema: string; table?: string } | null;
   connectionDialog: { open: boolean; editing?: ConnectionConfig | null; clone?: boolean };
 
   set: (patch: Partial<UiState>) => void;
@@ -63,6 +64,7 @@ export const useUi = create<UiState>()(
       settingsTab: "general",
       paletteOpen: false,
       ddlDialog: null,
+      importDialog: null,
       connectionDialog: { open: false, editing: null },
 
       set: (patch) => set(patch),

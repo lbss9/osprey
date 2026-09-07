@@ -487,5 +487,21 @@
     "hint": "Show how the server would run this (EXPLAIN)",
     "analyze": "Analyze",
     "analyzeHint": "Run the query and show real timings (EXPLAIN ANALYZE)"
+  },
+  "import": {
+    "title": "Import CSV…",
+    "newTable": "Import CSV into a new table…",
+    "file": "CSV file",
+    "pickFile": "Choose a CSV file",
+    "delimiter": "Delimiter",
+    "header": "First row is the header",
+    "emptyNull": "Empty cells become NULL",
+    "csvColumn": "CSV column",
+    "tableColumn": "Table column",
+    "skip": "— skip —",
+    "rows": "{{count}} rows",
+    "mapped": "{{count}} of {{total}} columns mapped",
+    "run": "Import",
+    "done": "{{count}} rows imported in {{time}}"
   }
 }

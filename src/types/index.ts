@@ -288,6 +288,33 @@ export interface ExplainResult {
   text?: string | null;
 }
 
+export interface CsvPreview {
+  columns: string[];
+  rows: string[][];
+  delimiter: string;
+  hasHeader: boolean;
+  totalRows: number;
+  truncatedCount: boolean;
+}
+
+export interface CsvImportRequest {
+  schema: string;
+  table: string;
+  path: string;
+  delimiter: string;
+  hasHeader: boolean;
+  mapping: { csvIndex: number; column: string }[];
+  emptyAsNull: boolean;
+  batchSize: number;
+  createTable: boolean;
+}
+
+export interface CsvImportResult {
+  inserted: number;
+  statements: number;
+  elapsedMs: number;
+}
+
 export interface AppInfo {
   version: string;
   os: string;

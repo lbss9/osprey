@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import Toasts from "@/components/molecules/Toasts";
 import ConnectionDialog from "@/components/organisms/ConnectionDialog";
 import SettingsDialog from "@/components/organisms/SettingsDialog";
+import ImportDialog from "@/components/organisms/ImportDialog";
 import StructureEditor from "@/components/organisms/StructureEditor";
 import CommandPalette, { type PaletteItem } from "@/components/organisms/CommandPalette";
 import TitleBar from "@/components/organisms/TitleBar";
@@ -153,6 +154,7 @@ export default function App() {
       <ConnectionDialog />
       <SettingsDialog />
       <StructureEditor />
+      <ImportDialog />
       <Toasts />
     </div>
   );

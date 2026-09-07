@@ -268,7 +268,12 @@ function SqlNodes({ conn, session, filter, onQuery }: { conn: ConnectionConfig; 
 
   const setUi = useUi((s) => s.set);
   const schemaMenu = (schema: string): ContextMenuItem[] => [
-    ...(!conn.readOnly ? [{ label: t("ddl.createTable"), icon: "plus" as const, onSelect: () => setUi({ ddlDialog: { connectionId: conn.id, schema, mode: "createTable" } }) }] : []),
+    ...(!conn.readOnly
+      ? [
+          { label: t("ddl.createTable"), icon: "plus" as const, onSelect: () => setUi({ ddlDialog: { connectionId: conn.id, schema, mode: "createTable" } }) },
+          { label: t("import.newTable"), icon: "download" as const, onSelect: () => setUi({ importDialog: { connectionId: conn.id, schema } }) },
+        ]
+      : []),
     { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, schema) },
     { label: t("ctx.querySchema"), icon: "fileCode", onSelect: () => onQuery(conn.driver === "postgres" ? `SET search_path TO ${quoteIdent(schema, conn.driver)};\n` : `USE ${quoteIdent(schema, conn.driver)};\n`) },
     { separator: true },
@@ -405,6 +410,7 @@ function TableNode({ conn, table, onQuery }: { conn: ConnectionConfig; table: Ta
     },
     { separator: true },
     { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, table.schema) },
+    ...(!isView && !conn.readOnly ? ([{ label: t("import.title"), icon: "download", onSelect: () => useUi.getState().set({ importDialog: { connectionId: conn.id, schema: table.schema, table: table.name } }) }] as ContextMenuItem[]) : []),
     ...(!isView && !conn.readOnly
       ? ([
           { separator: true },

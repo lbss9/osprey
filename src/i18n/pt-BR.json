@@ -487,5 +487,21 @@
     "hint": "Mostra como o servidor executaria isto (EXPLAIN)",
     "analyze": "Analisar",
     "analyzeHint": "Executa a consulta e mostra tempos reais (EXPLAIN ANALYZE)"
+  },
+  "import": {
+    "title": "Importar CSV…",
+    "newTable": "Importar CSV numa tabela nova…",
+    "file": "Arquivo CSV",
+    "pickFile": "Escolha um arquivo CSV",
+    "delimiter": "Separador",
+    "header": "Primeira linha é o cabeçalho",
+    "emptyNull": "Células vazias viram NULL",
+    "csvColumn": "Coluna do CSV",
+    "tableColumn": "Coluna da tabela",
+    "skip": "— pular —",
+    "rows": "{{count}} linhas",
+    "mapped": "{{count}} de {{total}} colunas mapeadas",
+    "run": "Importar",
+    "done": "{{count}} linhas importadas em {{time}}"
   }
 }

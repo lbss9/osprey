@@ -94,6 +94,8 @@ pub fn run() {
             redis_command,
             redis_info,
             export_rows,
+            csv_preview,
+            csv_import,
             read_file_text,
             write_file_text,
             data_dir_path,

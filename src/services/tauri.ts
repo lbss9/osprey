@@ -10,6 +10,9 @@ import type {
   ColumnInfo,
   ConnectionConfig,
   ConnectionInput,
+  CsvImportRequest,
+  CsvImportResult,
+  CsvPreview,
   DdlOp,
   ExplainResult,
   HistoryEntry,
@@ -113,6 +116,9 @@ export interface ExportRequest {
   delimiter?: string;
 }
 export const exportRows = (req: ExportRequest) => invoke<number>("export_rows", { req });
+export const csvPreview = (path: string, delimiter?: string, hasHeader?: boolean) =>
+  invoke<CsvPreview>("csv_preview", { path, delimiter: delimiter ?? null, hasHeader: hasHeader ?? null });
+export const csvImport = (connectionId: string, req: CsvImportRequest) => invoke<CsvImportResult>("csv_import", { connectionId, req });
 export const readFileText = (path: string) => invoke<string>("read_file_text", { path });
 export const writeFileText = (path: string, content: string) =>
   invoke<void>("write_file_text", { path, content });

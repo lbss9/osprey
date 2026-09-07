@@ -6,6 +6,7 @@
 pub mod app;
 pub mod connections;
 pub mod files;
+pub mod import;
 pub mod query;
 pub mod redis;
 pub mod schema;
@@ -15,6 +16,7 @@ pub mod table;
 pub use app::*;
 pub use connections::*;
 pub use files::*;
+pub use import::*;
 pub use query::*;
 pub use redis::*;
 pub use schema::*;

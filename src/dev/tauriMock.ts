@@ -672,6 +672,31 @@ const handlers: Record<string, Handler> = {
   },
 
   export_rows: ({ req }) => ((req as { rows: unknown[] }).rows ?? []).length,
+  csv_preview: ({ path, delimiter, hasHeader }) => {
+    if (String(path).includes("missing")) throw `errors.io|${path}: not found`;
+    return {
+      columns: ["Name", "Age", "Email"],
+      rows: [["Zed", "31", "zed@example.com"], ["Yara", "", "yara@example.com"]],
+      delimiter: (delimiter as string) ?? ",",
+      hasHeader: (hasHeader as boolean | null) ?? true,
+      totalRows: 2,
+      truncatedCount: false,
+    };
+  },
+  csv_import: ({ connectionId, req }) => {
+    const c = session(connectionId as string);
+    if (c.readOnly) throw "errors.readOnly";
+    const r = req as { mapping: { csvIndex: number; column: string }[]; createTable: boolean; table: string };
+    const rows = [["Zed", "31", "zed@example.com"], ["Yara", "", "yara@example.com"]];
+    if (!r.createTable) {
+      for (const row of rows) {
+        const rec: Record<string, unknown> = {};
+        for (const m of r.mapping) rec[m.column] = row[m.csvIndex] === "" ? null : row[m.csvIndex];
+        people.push({ id: nextId++, name: String(rec.name ?? ""), age: rec.age == null ? null : Number(rec.age), active: true, email: String(rec.email ?? ""), created_at: "2024-06-01 00:00:00" });
+      }
+    }
+    return { inserted: rows.length, statements: 1, elapsedMs: 7 };
+  },
   read_file_text: () => "",
   write_file_text: () => undefined,
   data_dir_path: () => "C:\\Users\\mock\\AppData\\Roaming\\com.lluan.osprey",
