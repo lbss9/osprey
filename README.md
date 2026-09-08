@@ -187,8 +187,31 @@ Grab the latest build from the [releases page](https://github.com/lbss9/osprey/r
 Installed copies check the releases page on startup and offer to update in place; you can also
 check from *Settings → About*. Every update package is signed and verified before it is applied.
 
-macOS builds are not notarized yet. After copying Osprey to Applications run
-`xattr -cr /Applications/Osprey.app` once, or right-click → *Open*.
+### macOS: "Osprey can't be opened" / "developer cannot be verified"
+
+The macOS builds are not signed with an Apple Developer certificate and are not notarized
+(there is no paid developer account behind the project). Gatekeeper therefore shows one of these
+messages the first time you open the app:
+
+> "Osprey" can't be opened because Apple cannot check it for malicious software.
+> "Osprey" is damaged and can't be opened. You should move it to the Bin.
+
+The app is fine; the message is only about the missing signature. Pick one of these:
+
+1. Copy Osprey to *Applications*, then **right-click (or Control-click) the app → Open → Open**.
+   macOS remembers the choice and the warning does not come back.
+2. Or clear the quarantine flag once from Terminal:
+
+```bash
+xattr -cr /Applications/Osprey.app
+```
+
+3. On macOS 13 or newer, if the dialog has no *Open* button, go to *System Settings → Privacy &
+   Security*, scroll to the message about Osprey and click **Open Anyway**.
+
+The in-app updater downloads the new version and verifies its signature, but the quarantine flag
+can make macOS refuse the replaced app on the next launch. If that happens, repeat step 2 with the
+new version. Windows and Linux are not affected: their packages update in place without any prompt.
 
 ## Building from source
 
