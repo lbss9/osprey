@@ -993,3 +993,41 @@ async fn mssql_end_to_end() {
     d.execute_transaction(&["DROP TABLE osprey_t.orders".into(), "DROP TABLE osprey_t.people".into()]).await.unwrap();
 }
 
+
+/// Empty database field: PostgreSQL lands on `postgres` even for a user that
+/// has no database of its own; MySQL connects with no default schema and
+/// still lists every schema.
+#[tokio::test]
+#[ignore]
+async fn empty_database_connects_like_other_clients() {
+    drivers::init_crypto();
+    if let Some((cfg, pass)) = config("OSPREY_TEST_PG", DriverKind::Postgres) {
+        let (admin, _) = drivers::connect(&cfg, Some(&pass), None, None).await.expect("connect");
+        let admin = admin.sql().unwrap();
+        admin.query("DROP ROLE IF EXISTS osprey_nodb; CREATE ROLE osprey_nodb LOGIN PASSWORD 'nodb'", 1).await.unwrap();
+        let mut nodb = cfg.clone();
+        nodb.user = "osprey_nodb".into();
+        nodb.database = String::new();
+        let (s, _) = drivers::connect(&nodb, Some("nodb"), None, None).await.expect("connect without database");
+        let d = s.sql().unwrap();
+        let info = d.server_info().await.unwrap();
+        assert_eq!(info.database.as_deref(), Some("postgres"), "maintenance database");
+        assert!(d.list_databases(false).await.unwrap().contains(&"demo".to_string()));
+        drop(d);
+        drop(s);
+        admin.query("DROP ROLE IF EXISTS osprey_nodb", 1).await.unwrap();
+        // an explicit unknown database still errors clearly
+        let mut bad = cfg.clone();
+        bad.database = "osprey_no_such_db".into();
+        let e = drivers::connect(&bad, Some(&pass), None, None).await.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(e.starts_with("errors.unknownDatabase|"), "{e}");
+    }
+    if let Some((mut cfg, pass)) = config("OSPREY_TEST_MYSQL", DriverKind::Mysql) {
+        cfg.database = String::new();
+        let (s, _) = drivers::connect(&cfg, Some(&pass), None, None).await.expect("mysql without database");
+        let d = s.sql().unwrap();
+        assert!(d.server_info().await.unwrap().database.filter(|x| !x.is_empty()).is_none());
+        let schemas = d.list_schemas(false).await.unwrap();
+        assert!(schemas.contains(&"demo".to_string()), "{schemas:?}");
+    }
+}

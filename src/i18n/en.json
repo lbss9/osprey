@@ -160,7 +160,15 @@
     "clickhouse": "ClickHouse",
     "clickhouseHint": "HTTP interface (8123, or 8443 with TLS). Databases play the schema role; there are no transactions.",
     "mssql": "SQL Server",
-    "mssqlHint": "TDS 7.3+ (SQL Server 2008 and later, Azure SQL). Encryption follows the SSL setting; scripts may use GO."
+    "mssqlHint": "TDS 7.3+ (SQL Server 2008 and later, Azure SQL). Encryption follows the SSL setting; scripts may use GO.",
+    "databaseHint": {
+      "postgres": "Leave empty to connect to the maintenance database (postgres) and browse every database from the sidebar.",
+      "mysql": "Leave empty to browse every schema on the server.",
+      "mssql": "Leave empty for the login's default database (usually master); every database is listed anyway.",
+      "clickhouse": "Leave empty for the default database; every database is listed anyway.",
+      "sqlite": "",
+      "redis": ""
+    }
   },
   "tabs": {
     "query": "Query",
@@ -416,7 +424,8 @@
     "storage": "Local storage error",
     "secrets": "Credential store error",
     "io": "File error",
-    "unknown": "Unexpected error"
+    "unknown": "Unexpected error",
+    "unknownDatabase": "Database does not exist"
   },
   "ctx": {
     "connect": "Connect",

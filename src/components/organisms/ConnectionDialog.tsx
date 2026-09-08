@@ -254,7 +254,10 @@ export default function ConnectionDialog() {
                     <ToolButton icon="eye" title={showPw ? t("common.no") : t("common.yes")} active={showPw} onClick={() => setShowPw((v) => !v)} />
                   </div>
                 </Field>
-                <Field label={isRedis ? t("connection.redisDb") : form.driver === "mysql" ? t("connection.databaseOptional") : t("connection.database")}>
+                <Field
+                  label={isRedis ? t("connection.redisDb") : t("connection.databaseOptional")}
+                  hint={isRedis ? undefined : t(`connection.databaseHint.${form.driver}`)}
+                >
                   <Input mono value={form.database} onChange={(e) => set({ database: e.target.value })} placeholder={isRedis ? "0" : form.driver === "postgres" ? "postgres" : form.driver === "clickhouse" ? "default" : form.driver === "mssql" ? "master" : ""} />
                 </Field>
                 <Field label={t("connection.ssl")}>

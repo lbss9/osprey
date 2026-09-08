@@ -30,21 +30,38 @@ pub struct PgDriver {
 }
 
 impl PgDriver {
-    pub async fn connect(
-        cfg: &ConnectionConfig,
-        password: Option<&str>,
-        database: Option<&str>,
-    ) -> AppResult<Self> {
-        let db = database
+    /// Connect. With no database given (dialog field left empty) this does
+    /// what pgAdmin, DBeaver and TablePlus do: land on the maintenance
+    /// database `postgres` and let the sidebar list every database. If that
+    /// one does not exist, fall back to the libpq default (a database named
+    /// after the user) and then to `template1`.
+    pub async fn connect(cfg: &ConnectionConfig, password: Option<&str>, database: Option<&str>) -> AppResult<Self> {
+        let explicit = database
             .map(|s| s.to_string())
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| {
-                if cfg.database.is_empty() {
-                    cfg.user.clone()
-                } else {
-                    cfg.database.clone()
+            .or_else(|| Some(cfg.database.clone()).filter(|s| !s.is_empty()));
+        let candidates: Vec<String> = match explicit {
+            Some(db) => vec![db],
+            None => {
+                let mut v = vec!["postgres".to_string()];
+                if !cfg.user.is_empty() && cfg.user != "postgres" {
+                    v.push(cfg.user.clone());
                 }
-            });
+                v.push("template1".to_string());
+                v
+            }
+        };
+        let last = candidates.len() - 1;
+        for (i, db) in candidates.into_iter().enumerate() {
+            match Self::connect_db(cfg, password, db).await {
+                Err(AppError::UnknownDatabase(_)) if i < last => continue,
+                other => return other,
+            }
+        }
+        unreachable!("at least one candidate")
+    }
+
+    async fn connect_db(cfg: &ConnectionConfig, password: Option<&str>, db: String) -> AppResult<Self> {
         let timeout = cfg.options.get("connectTimeout").and_then(|v| v.as_u64()).filter(|s| *s > 0).unwrap_or(15);
         let app_name = cfg
             .options

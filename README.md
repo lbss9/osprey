@@ -56,6 +56,9 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 - PostgreSQL, MySQL/MariaDB, Redis, SQLite, ClickHouse and SQL Server with one dialog: host, port, user,
   password, database, TLS mode (off / prefer / require / verify), colour, group and read-only flag
+- The database field is optional: leave it empty and Osprey lands on the server's maintenance
+  database (`postgres`, `master`, `default`, or no default schema on MySQL) and lists every
+  database in the sidebar, the way pgAdmin, DBeaver and TablePlus do
 - SSH tunnel per connection (password or private key), opened before the driver connects
 - *Test* connects once and shows the server version before you save
 - Right-click any connection, schema or table for a full context menu; *Properties…* edits the

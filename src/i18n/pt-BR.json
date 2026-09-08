@@ -160,7 +160,15 @@
     "clickhouse": "ClickHouse",
     "clickhouseHint": "Interface HTTP (8123, ou 8443 com TLS). Bancos fazem o papel de schema; não há transações.",
     "mssql": "SQL Server",
-    "mssqlHint": "TDS 7.3+ (SQL Server 2008 em diante, Azure SQL). A criptografia segue a opção SSL; scripts podem usar GO."
+    "mssqlHint": "TDS 7.3+ (SQL Server 2008 em diante, Azure SQL). A criptografia segue a opção SSL; scripts podem usar GO.",
+    "databaseHint": {
+      "postgres": "Deixe vazio para entrar no banco de manutenção (postgres) e navegar por todos os bancos pela barra lateral.",
+      "mysql": "Deixe vazio para ver todos os schemas do servidor.",
+      "mssql": "Deixe vazio para usar o banco padrão do login (normalmente master); todos os bancos aparecem de qualquer forma.",
+      "clickhouse": "Deixe vazio para usar o banco default; todos os bancos aparecem de qualquer forma.",
+      "sqlite": "",
+      "redis": ""
+    }
   },
   "tabs": {
     "query": "Consulta",
@@ -416,7 +424,8 @@
     "storage": "Erro no armazenamento local",
     "secrets": "Erro no cofre de credenciais",
     "io": "Erro de arquivo",
-    "unknown": "Erro inesperado"
+    "unknown": "Erro inesperado",
+    "unknownDatabase": "O banco de dados não existe"
   },
   "ctx": {
     "connect": "Conectar",

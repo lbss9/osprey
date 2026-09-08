@@ -18,6 +18,9 @@ pub enum AppError {
     Unsupported(String),
     #[error("errors.connect|{0}")]
     Connect(String),
+    /// the server is reachable but the requested database does not exist (PG 3D000)
+    #[error("errors.unknownDatabase|{0}")]
+    UnknownDatabase(String),
     #[error("errors.auth|{0}")]
     Auth(String),
     #[error("errors.tls|{0}")]
@@ -90,8 +93,7 @@ impl From<tokio_postgres::Error> for AppError {
                 return AppError::Auth(db.message().to_string());
             }
             if code == "3D000" {
-                // unknown database
-                return AppError::Connect(db.message().to_string());
+                return AppError::UnknownDatabase(db.message().to_string());
             }
             let mut msg = db.message().to_string();
             if let Some(d) = db.detail() {
