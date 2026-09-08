@@ -34,11 +34,19 @@ impl AppState {
 
     /// Drop a session and its tunnel (if any).
     pub async fn remove_session(&self, id: &str) {
-        if let Some(s) = self.sessions.write().await.remove(id) {
-            s.close().await;
-        }
-        if let Some(t) = self.tunnels.write().await.remove(id) {
-            t.close().await;
+        // the session itself plus every per-database session opened under it
+        let db_prefix = format!("{id}@");
+        let keys: Vec<String> = {
+            let sessions = self.sessions.read().await;
+            sessions.keys().filter(|k| *k == id || k.starts_with(&db_prefix)).cloned().collect()
+        };
+        for k in keys {
+            if let Some(s) = self.sessions.write().await.remove(&k) {
+                s.close().await;
+            }
+            if let Some(t) = self.tunnels.write().await.remove(&k) {
+                t.close().await;
+            }
         }
         let prefix = format!("{id}:");
         let mut subs = self.pubsubs.write().await;

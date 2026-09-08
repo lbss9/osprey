@@ -88,6 +88,15 @@ export interface ForeignKeyInfo {
   onDelete?: string | null;
 }
 
+export interface RoutineInfo {
+  schema: string;
+  name: string;
+  kind: "function" | "procedure" | string;
+  args: string;
+  returns?: string | null;
+  language?: string | null;
+}
+
 export interface TableColumns {
   table: string;
   columns: ColumnInfo[];

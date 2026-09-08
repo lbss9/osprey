@@ -63,8 +63,9 @@ the shell is Tauri 2, and the interface is React with its own identity.
 - *Test* connects once and shows the server version before you save
 - Right-click any connection, schema or table for a full context menu; *Properties…* edits the
   connection in place; drag connections to reorder them
-- Sidebar tree: connection → database → schema → tables and views with row estimates, plus a
-  quick filter. Switch database (PostgreSQL) or DB index (Redis) in place
+- Sidebar tree: connection → databases → schemas → *Tables*, *Views* and *Routines* folders with
+  counts and row estimates, plus a quick filter. Expanding another database opens it on its own
+  session, so several databases can be browsed side by side; routines open their source in a tab
 
 **Data tab**
 
@@ -108,8 +109,9 @@ the shell is Tauri 2, and the interface is React with its own identity.
 
 **Everywhere**
 
-- Interface in English and Brazilian Portuguese; dark, light or follow-the-system theme, plus
-  JSON themes dropped into the themes folder (live reload, export the current one as a starting point)
+- Interface in English and Brazilian Portuguese; dark, light or follow-the-system theme, 25
+  built-in colour presets, plus JSON themes dropped into the themes folder (live reload, export
+  the current one as a starting point)
 - Numbers and dates in grids follow the locale you pick; copying and editing keep the raw value
 - Drag tabs to reorder them; every visible string is translatable
 - Signed in-app updates on Windows, macOS and Linux
@@ -273,6 +275,13 @@ Linux). *Settings → Data → Open folder* takes you there.
 - [x] SQL Server
 - [ ] MongoDB, DuckDB
 - [x] ER diagram
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability and what the app does with your
+data. In short: everything stays on your machine, passwords live in the OS credential store,
+SSH host keys are verified against `known_hosts`, updates are signed, and the webview runs under
+a strict Content Security Policy with only the Tauri capabilities the interface needs.
 
 ## Contributing
 

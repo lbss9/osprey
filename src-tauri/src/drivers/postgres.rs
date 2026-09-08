@@ -261,6 +261,38 @@ impl SqlDriver for PgDriver {
             .collect())
     }
 
+    async fn list_routines(&self, schema: &str) -> AppResult<Vec<RoutineInfo>> {
+        let rows = self
+            .rows_text(
+                "SELECT p.proname::text, pg_get_function_identity_arguments(p.oid)::text, pg_get_function_result(p.oid)::text, l.lanname::text, p.prokind::text
+                 FROM pg_proc p
+                 JOIN pg_namespace n ON n.oid = p.pronamespace
+                 JOIN pg_language l ON l.oid = p.prolang
+                 WHERE n.nspname = $1 AND p.prokind IN ('f', 'p', 'w')
+                 ORDER BY p.proname, 2",
+                &[&schema],
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| RoutineInfo {
+                schema: schema.to_string(),
+                name: s(&r[0]),
+                args: s(&r[1]),
+                returns: r[2].clone().filter(|v| !v.is_empty()),
+                language: r[3].clone(),
+                kind: if s(&r[4]) == "p" { "procedure" } else { "function" }.to_string(),
+            })
+            .collect())
+    }
+
+    async fn routine_definition(&self, schema: &str, name: &str, args: &str) -> AppResult<String> {
+        let d = Dialect::Postgres;
+        let sig = format!("{}.{}({args})", d.quote_ident(schema), d.quote_ident(name));
+        let rows = self.rows_text("SELECT pg_get_functiondef(to_regprocedure($1))::text", &[&sig]).await?;
+        rows.into_iter().next().and_then(|r| r.into_iter().next().flatten()).ok_or_else(|| AppError::Query(format!("routine {sig} not found")))
+    }
+
     async fn schema_columns(&self, schema: &str) -> AppResult<Vec<TableColumns>> {
         let rows = self
             .rows_text(

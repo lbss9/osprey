@@ -2,7 +2,7 @@ use tauri::State;
 
 use crate::drivers::Session;
 use crate::error::CmdResult;
-use crate::models::{ColumnInfo, DdlOp, TableColumns, TableInfo, TableStructure};
+use crate::models::{ColumnInfo, DdlOp, RoutineInfo, TableColumns, TableInfo, TableStructure};
 use crate::store::connections as repo;
 use crate::error::AppError;
 use crate::state::AppState;
@@ -40,6 +40,18 @@ pub async fn schema_tables(
 ) -> CmdResult<Vec<TableInfo>> {
     let s = state.session(&connection_id).await?.sql()?;
     Ok(s.list_tables(&schema).await?)
+}
+
+#[tauri::command]
+pub async fn schema_routines(state: State<'_, AppState>, connection_id: String, schema: String) -> CmdResult<Vec<RoutineInfo>> {
+    let s = state.session(&connection_id).await?.sql()?;
+    Ok(s.list_routines(&schema).await?)
+}
+
+#[tauri::command]
+pub async fn routine_definition(state: State<'_, AppState>, connection_id: String, schema: String, name: String, args: String) -> CmdResult<String> {
+    let s = state.session(&connection_id).await?.sql()?;
+    Ok(s.routine_definition(&schema, &name, &args).await?)
 }
 
 #[tauri::command]

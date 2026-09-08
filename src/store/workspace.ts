@@ -7,7 +7,8 @@ import { create } from "zustand";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
 import { useUi } from "@/store/ui";
-import type { ConnectionConfig, ServerInfo, Tab, TabKind, TableInfo } from "@/types";
+import { connectionIdOf, sessionKey } from "@/utils/session";
+import type { ConnectionConfig, RoutineInfo, ServerInfo, Tab, TabKind, TableInfo } from "@/types";
 
 export type SessionStatus = "connecting" | "open" | "error";
 
@@ -22,6 +23,8 @@ export interface SessionState {
   tables: Record<string, TableInfo[] | undefined>;
   /** schema → table → column names (autocompletion); loaded on demand */
   columns: Record<string, Record<string, string[]> | undefined>;
+  /** schema → functions and procedures; loaded when the folder opens */
+  routines?: Record<string, RoutineInfo[] | undefined>;
   loadingTables: Record<string, boolean>;
   expanded: Record<string, boolean>;
 }
@@ -53,6 +56,9 @@ interface WorkspaceState {
   loadTables: (id: string, schema: string) => Promise<void>;
   /** column names of every table in a schema, cached until the schema is refreshed */
   loadSchemaColumns: (id: string, schema: string) => Promise<void>;
+  loadRoutines: (key: string, schema: string) => Promise<void>;
+  /** open a session on another database of the same connection (key `<id>@<db>`) */
+  openDatabase: (id: string, database: string) => Promise<void>;
   toggleExpanded: (id: string, key: string, value?: boolean) => void;
   toggleGroup: (name: string) => void;
 
@@ -103,6 +109,33 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
     }
   },
 
+  loadRoutines: async (key, schema) => {
+    try {
+      const list = await api.schemaRoutines(key, schema);
+      set((s) => ({ sessions: { ...s.sessions, [key]: { ...s.sessions[key], routines: { ...s.sessions[key].routines, [schema]: list } } } }));
+    } catch (e) {
+      set((s) => ({ sessions: { ...s.sessions, [key]: { ...s.sessions[key], routines: { ...s.sessions[key].routines, [schema]: [] } } } }));
+      get().toast(translateError(e), "error");
+    }
+  },
+
+  openDatabase: async (id, database) => {
+    const key = sessionKey(id, database);
+    if (get().sessions[key]?.status === "open" || get().sessions[key]?.status === "connecting") return;
+    set((s) => ({
+      sessions: { ...s.sessions, [key]: { status: "connecting", tables: {}, columns: {}, loadingTables: {}, expanded: s.sessions[key]?.expanded ?? {}, database } },
+    }));
+    try {
+      const info = await api.sessionOpenDatabase(id, database);
+      set((s) => ({ sessions: { ...s.sessions, [key]: { ...s.sessions[key], status: "open", info, error: undefined, database } } }));
+      await get().loadSchemas(key);
+    } catch (e) {
+      const error = translateError(e);
+      set((s) => ({ sessions: { ...s.sessions, [key]: { ...s.sessions[key], status: "error", error } } }));
+      get().toast(error, "error");
+    }
+  },
+
   reorderConnections: async (id, beforeId) => {
     const list = get().connections.filter((c) => c.id !== id);
     const moving = get().connections.find((c) => c.id === id);
@@ -150,7 +183,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
         },
       }));
       // fetch the tree lazily but right away so the sidebar fills in
-      const conn = get().connections.find((c) => c.id === id);
+      const conn = get().connections.find((c) => c.id === connectionIdOf(id));
       if (conn?.driver !== "redis") {
         void get().loadSchemas(id);
       } else {
@@ -181,7 +214,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
     get().closeTabsFor(id);
     set((s) => {
       const sessions = { ...s.sessions };
-      delete sessions[id];
+      for (const k of Object.keys(sessions)) if (connectionIdOf(k) === id) delete sessions[k];
       return { sessions };
     });
   },
@@ -328,7 +361,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
   closeAllTabs: () => set({ tabs: [], activeTabId: null }),
   closeTabsFor: (connectionId) =>
     set((s) => {
-      const tabs = s.tabs.filter((t) => t.connectionId !== connectionId);
+      const tabs = s.tabs.filter((t) => connectionIdOf(t.connectionId) !== connectionId);
       const activeTabId = tabs.some((t) => t.id === s.activeTabId) ? s.activeTabId : tabs[0]?.id ?? null;
       return { tabs, activeTabId };
     }),

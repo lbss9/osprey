@@ -6,6 +6,7 @@ import Icon, { type IconName } from "@/components/atoms/Icon";
 import { useContextMenu } from "@/components/molecules/ContextMenu";
 import ToolButton from "@/components/molecules/ToolButton";
 import { useUi } from "@/store/ui";
+import { connectionIdOf } from "@/utils/session";
 import { useWorkspace } from "@/store/workspace";
 import { confirmDialog } from "@/utils/dialog";
 import type { Tab } from "@/types";
@@ -57,7 +58,7 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
     openBelow(
       el,
       tabs.map((tab) => {
-        const conn = connections.find((c) => c.id === tab.connectionId);
+        const conn = connections.find((c) => c.id === connectionIdOf(tab.connectionId));
         return {
           label: conn ? `${tab.title}  ·  ${conn.name}` : tab.title,
           icon: ICON[tab.kind],
@@ -86,7 +87,7 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
         }}
       >
         {tabs.map((tab, i) => {
-          const conn = connections.find((c) => c.id === tab.connectionId);
+          const conn = connections.find((c) => c.id === connectionIdOf(tab.connectionId));
           return (
             <div
               key={tab.id}

@@ -18,7 +18,7 @@ use async_trait::async_trait;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    ColumnInfo, ConnectionConfig, DriverKind, ResultSet, RowSink, ServerInfo, TableColumns, TableInfo, TableStructure,
+    ColumnInfo, ConnectionConfig, DriverKind, ResultSet, RoutineInfo, RowSink, ServerInfo, TableColumns, TableInfo, TableStructure,
 };
 
 /// Upper bound on rows a single result set carries to the UI. The table
@@ -48,6 +48,14 @@ pub trait SqlDriver: Send + Sync {
         Ok(out)
     }
     async fn structure(&self, schema: &str, table: &str) -> AppResult<TableStructure>;
+    /// Functions and procedures of a schema (engines without a catalog return none).
+    async fn list_routines(&self, _schema: &str) -> AppResult<Vec<RoutineInfo>> {
+        Ok(vec![])
+    }
+    /// Source of one routine, as `CREATE …` text.
+    async fn routine_definition(&self, _schema: &str, _name: &str, _args: &str) -> AppResult<String> {
+        Err(crate::error::AppError::Unsupported("routine source".into()))
+    }
     /// Run arbitrary SQL (possibly several statements) and return one result
     /// set per statement. Rows beyond `max_rows` are dropped and flagged.
     async fn query(&self, sql: &str, max_rows: usize) -> AppResult<Vec<ResultSet>> {

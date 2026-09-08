@@ -21,6 +21,7 @@ import type { SqlEditorHandle } from "@/components/organisms/SqlEditor";
 const SqlEditor = lazy(() => import("@/components/organisms/SqlEditor"));
 const ValueDialog = lazy(() => import("@/components/molecules/ValueDialog"));
 import { useUi } from "@/store/ui";
+import { connectionIdOf } from "@/utils/session";
 import { useWorkspace } from "@/store/workspace";
 import { onEvent } from "@/services/events";
 import * as api from "@/services/tauri";
@@ -31,7 +32,7 @@ import type { ExplainResult, QueryRowsEvent, ResultSet, Tab } from "@/types";
 /** SQL editor on top, results below. Ctrl+Enter runs the selection or all. */
 export default function QueryView({ tab }: { tab: Tab }) {
   const { t } = useTranslation();
-  const conn = useWorkspace((s) => s.connections.find((c) => c.id === tab.connectionId));
+  const conn = useWorkspace((s) => s.connections.find((c) => c.id === connectionIdOf(tab.connectionId)));
   const session = useWorkspace((s) => s.sessions[tab.connectionId]);
   const updateTab = useWorkspace((s) => s.updateTab);
   const activeTabId = useWorkspace((s) => s.activeTabId);

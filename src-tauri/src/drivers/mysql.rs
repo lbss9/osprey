@@ -224,6 +224,44 @@ impl SqlDriver for MysqlDriver {
             .collect())
     }
 
+    async fn list_routines(&self, schema: &str) -> AppResult<Vec<RoutineInfo>> {
+        let d = Dialect::Mysql;
+        let rows = self
+            .text_rows(&format!(
+                "SELECT r.ROUTINE_NAME, r.ROUTINE_TYPE, r.DTD_IDENTIFIER,
+                        (SELECT GROUP_CONCAT(CONCAT(p.PARAMETER_NAME, ' ', p.DTD_IDENTIFIER) ORDER BY p.ORDINAL_POSITION SEPARATOR ', ')
+                         FROM information_schema.PARAMETERS p
+                         WHERE p.SPECIFIC_SCHEMA = r.ROUTINE_SCHEMA AND p.SPECIFIC_NAME = r.SPECIFIC_NAME AND p.ORDINAL_POSITION > 0)
+                 FROM information_schema.ROUTINES r WHERE r.ROUTINE_SCHEMA = {} ORDER BY r.ROUTINE_NAME",
+                d.quote_literal(schema)
+            ))
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| RoutineInfo {
+                schema: schema.to_string(),
+                name: s(&r[0]),
+                kind: s(&r[1]).to_ascii_lowercase(),
+                returns: r[2].clone().filter(|v| !v.is_empty()),
+                args: s(&r[3]),
+                language: Some("sql".into()),
+            })
+            .collect())
+    }
+
+    async fn routine_definition(&self, schema: &str, name: &str, _args: &str) -> AppResult<String> {
+        let d = Dialect::Mysql;
+        let target = d.qualified(schema, name);
+        for kind in ["FUNCTION", "PROCEDURE"] {
+            if let Ok(rows) = self.text_rows(&format!("SHOW CREATE {kind} {target}")).await {
+                if let Some(def) = rows.into_iter().next().and_then(|r| r.get(2).cloned().flatten()) {
+                    return Ok(def);
+                }
+            }
+        }
+        Err(AppError::Query(format!("routine {target} not found")))
+    }
+
     async fn schema_columns(&self, schema: &str) -> AppResult<Vec<TableColumns>> {
         let d = Dialect::Mysql;
         let rows = self

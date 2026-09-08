@@ -40,6 +40,33 @@ pub async fn session_open(
     Ok(info)
 }
 
+/// A second session on the same connection for another database, kept under
+/// the key `<connection_id>@<database>` so every command can address it. The
+/// tree uses this to expand several databases at once (PostgreSQL, SQL Server).
+#[tauri::command]
+pub async fn session_open_database(state: State<'_, AppState>, connection_id: String, database: String) -> CmdResult<ServerInfo> {
+    let cfg = {
+        let db = state.lock_db()?;
+        repo::get(&db, &connection_id)?
+            .map(|(c, _)| c)
+            .ok_or(AppError::Storage("connection not found".into()))?
+    };
+    let password = resolve_password(&state, &connection_id)?;
+    let ssh_secret = resolve_ssh_secret(&state, &connection_id);
+    let (session, tunnel) = drivers::connect(&cfg, password.as_deref(), ssh_secret.as_deref(), Some(&database)).await?;
+    let info = match &session {
+        Session::Sql(d) => d.server_info().await?,
+        Session::Redis(r) => r.server_info().await?,
+    };
+    let key = format!("{connection_id}@{database}");
+    state.remove_session(&key).await;
+    state.sessions.write().await.insert(key.clone(), session);
+    if let Some(t) = tunnel {
+        state.tunnels.write().await.insert(key, t);
+    }
+    Ok(info)
+}
+
 #[tauri::command]
 pub async fn session_close(state: State<'_, AppState>, connection_id: String) -> CmdResult<()> {
     state.remove_session(&connection_id).await;

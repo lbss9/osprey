@@ -24,6 +24,7 @@ import type {
   RedisValue,
   RedisValueRequest,
   ResultSet,
+  RoutineInfo,
   SavedQuery,
   ServerInfo,
   SlowlogEntry,
@@ -50,6 +51,8 @@ export const secretsAvailable = () => invoke<boolean>("secrets_available");
 
 export const sessionOpen = (connectionId: string, database?: string) =>
   invoke<ServerInfo>("session_open", { connectionId, database: database ?? null });
+export const sessionOpenDatabase = (connectionId: string, database: string) =>
+  invoke<ServerInfo>("session_open_database", { connectionId, database });
 export const sessionClose = (connectionId: string) =>
   invoke<void>("session_close", { connectionId });
 export const sessionList = () => invoke<string[]>("session_list");
@@ -64,6 +67,9 @@ export const schemaList = (connectionId: string, includeSystem = false) =>
   invoke<string[]>("schema_list", { connectionId, includeSystem });
 export const schemaTables = (connectionId: string, schema: string) =>
   invoke<TableInfo[]>("schema_tables", { connectionId, schema });
+export const schemaRoutines = (connectionId: string, schema: string) => invoke<RoutineInfo[]>("schema_routines", { connectionId, schema });
+export const routineDefinition = (connectionId: string, schema: string, name: string, args: string) =>
+  invoke<string>("routine_definition", { connectionId, schema, name, args });
 export const schemaColumns = (connectionId: string, schema: string) =>
   invoke<TableColumns[]>("schema_columns", { connectionId, schema });
 export const tableColumns = (connectionId: string, schema: string, table: string) =>

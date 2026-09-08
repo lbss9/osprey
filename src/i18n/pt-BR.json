@@ -87,7 +87,14 @@
     "switchDatabase": "Trocar banco",
     "database": "Banco",
     "rows": "{{count}} linhas (est.)",
-    "readOnly": "somente leitura"
+    "readOnly": "somente leitura",
+    "routines": "Rotinas",
+    "noViews": "Nenhuma view",
+    "noRoutines": "Nenhuma função ou procedure",
+    "openRoutine": "Abrir código-fonte",
+    "callRoutine": "Chamar em uma aba de consulta",
+    "connectedDatabase": "Banco conectado",
+    "databaseHint": "Expanda para abrir este banco na mesma conexão"
   },
   "welcome": {
     "title": "Bem-vindo ao Osprey",

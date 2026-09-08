@@ -943,6 +943,42 @@ kbd {
 .tree-indent-3 {
   padding-left: 58px;
 }
+.tree-indent-4 {
+  padding-left: 76px;
+}
+.tree-row.folder {
+  color: var(--text-soft);
+}
+.tree-row .folder-icon {
+  color: var(--amber);
+  opacity: 0.85;
+}
+.tree-row.system {
+  opacity: 0.6;
+  font-style: italic;
+}
+.routine-badge {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.routine-badge.proc {
+  color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 18%, var(--bg));
+}
+.routine-args {
+  color: var(--text-faint);
+  font-size: 0.85em;
+  margin-left: 2px;
+}
 .tree-empty {
   padding: 8px 12px;
   color: var(--text-faint);

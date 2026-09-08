@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Icon from "@/components/atoms/Icon";
 import Input from "@/components/atoms/Input";
 import Spinner from "@/components/atoms/Spinner";
 import Dropdown from "@/components/molecules/Dropdown";
 import ToolButton from "@/components/molecules/ToolButton";
+import SqlTree from "@/components/organisms/SidebarTree";
 import { useContextMenu, type ContextMenuItem } from "@/components/molecules/ContextMenu";
 import { useUi } from "@/store/ui";
 import { useWorkspace, type SessionState } from "@/store/workspace";
@@ -12,8 +13,9 @@ import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
 import { copyText } from "@/utils/clipboard";
 import { confirmDialog } from "@/utils/dialog";
-import { formatNumber, quoteIdent, modKey } from "@/utils/format";
-import type { ConnectionConfig, TableInfo } from "@/types";
+import { formatNumber, modKey } from "@/utils/format";
+import { connectionIdOf } from "@/utils/session";
+import type { ConnectionConfig } from "@/types";
 
 const DRIVER_COLOR: Record<string, string> = { postgres: "var(--pg)", mysql: "var(--mysql)", redis: "var(--redis)", sqlite: "var(--sqlite)", clickhouse: "var(--clickhouse)", mssql: "var(--mssql)" };
 
@@ -145,6 +147,7 @@ function ConnectionNode({
   const isOpen = status === "open";
   const expanded = isOpen && session?.expanded.root !== false;
   const activeTab = ws.tabs.find((x) => x.id === ws.activeTabId);
+  const activeConnId = activeTab ? connectionIdOf(activeTab.connectionId) : undefined;
   const isRedis = conn.driver === "redis";
 
   const onClick = () => {
@@ -217,7 +220,7 @@ function ConnectionNode({
   return (
     <div>
       <div
-        className={`tree-row conn ${activeTab?.connectionId === conn.id ? "active" : ""} ${dragOver ? "drag-over" : ""}`}
+        className={`tree-row conn ${activeConnId === conn.id ? "active" : ""} ${dragOver ? "drag-over" : ""}`}
         onClick={onClick}
         onDoubleClick={() => openConnectionDialog(conn)}
         onContextMenu={(e) => open(e, menu)}
@@ -248,7 +251,7 @@ function ConnectionNode({
         {conn.readOnly && <Icon name="eye" size={12} className="meta" />}
         {status === "connecting" ? <Spinner /> : <span className={`status ${status ?? ""}`} />}
       </div>
-      {expanded && session && (isRedis ? <RedisNodes conn={conn} session={session} onOpen={openRedis} /> : <SqlNodes conn={conn} session={session} filter={filter} onQuery={openQuery} />)}
+      {expanded && session && (isRedis ? <RedisNodes conn={conn} session={session} onOpen={openRedis} /> : <SqlTree conn={conn} session={session} filter={filter} onQuery={openQuery} />)}
       {status === "error" && session?.error && (
         <div className="tree-empty" style={{ color: "var(--red)" }}>
           {session.error}
@@ -299,196 +302,3 @@ function RedisNodes({ conn, session, onOpen }: { conn: ConnectionConfig; session
 }
 
 /* ----------------------------------- sql ---------------------------------- */
-
-const SYSTEM_SCHEMAS = new Set(["pg_catalog", "information_schema", "pg_toast", "mysql", "sys", "performance_schema"]);
-
-function SqlNodes({ conn, session, filter, onQuery }: { conn: ConnectionConfig; session: SessionState; filter: string; onQuery: (sql?: string) => void }) {
-  const { t } = useTranslation();
-  const ws = useWorkspace();
-  const { open } = useContextMenu();
-  const schemas = session.schemas ?? [];
-  const q = filter.trim().toLowerCase();
-
-  // while filtering, load every schema that was never expanded
-  useEffect(() => {
-    if (!q) return;
-    for (const schema of schemas) {
-      if (!session.tables[schema] && !session.loadingTables[schema]) void ws.loadTables(conn.id, schema);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, schemas.length]);
-
-  const setUi = useUi((s) => s.set);
-  const schemaMenu = (schema: string): ContextMenuItem[] => [
-    ...(!conn.readOnly
-      ? [
-          { label: t("ddl.createTable"), icon: "plus" as const, onSelect: () => setUi({ ddlDialog: { connectionId: conn.id, schema, mode: "createTable" } }) },
-          { label: t("import.newTable"), icon: "download" as const, onSelect: () => setUi({ importDialog: { connectionId: conn.id, schema } }) },
-        ]
-      : []),
-    { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, schema) },
-    { label: t("diagram.title"), icon: "tree", onSelect: () => ws.openTab({ kind: "diagram", connectionId: conn.id, schema, title: `${schema} · ${t("diagram.short")}` }) },
-    { label: t("ctx.querySchema"), icon: "fileCode", onSelect: () => onQuery(conn.driver === "postgres" ? `SET search_path TO ${quoteIdent(schema, conn.driver)};\n` : `USE ${quoteIdent(schema, conn.driver)};\n`) },
-    { separator: true },
-    { label: t("ctx.copyName"), icon: "copy", onSelect: () => void copyText(schema) },
-    { separator: true },
-    { label: t("ctx.collapseAll"), onSelect: () => schemas.forEach((s) => ws.toggleExpanded(conn.id, `schema:${s}`, false)) },
-    { label: t("ctx.expandAll"), onSelect: () => schemas.forEach((s) => { ws.toggleExpanded(conn.id, `schema:${s}`, true); if (!session.tables[s]) void ws.loadTables(conn.id, s); }) },
-  ];
-
-  return (
-    <div>
-      {conn.driver === "postgres" && session.databases && session.databases.length > 1 && (
-        <div className="db-switch">
-          <Icon name="database" size={13} style={{ color: "var(--text-faint)" }} />
-          <Dropdown
-            size="sm"
-            value={session.database ?? ""}
-            options={session.databases.map((d) => ({ value: d, label: d }))}
-            onChange={(v) => void ws.connect(conn.id, v)}
-            title={t("sidebar.switchDatabase")}
-            className="db-dd"
-          />
-        </div>
-      )}
-      {!session.schemas && (
-        <div className="tree-empty">
-          <Spinner /> {t("common.loading")}
-        </div>
-      )}
-      {schemas.map((schema) => {
-        const key = `schema:${schema}`;
-        const isOpen = !!session.expanded[key] || !!q;
-        const tables = session.tables[schema];
-        const loading = session.loadingTables[schema];
-        const visible = (tables ?? []).filter((tb) => !q || tb.name.toLowerCase().includes(q));
-        if (q && tables && visible.length === 0) return null;
-        const system = SYSTEM_SCHEMAS.has(schema);
-        return (
-          <div key={schema}>
-            <div
-              className={`tree-row tree-indent-1 ${system ? "system" : ""}`}
-              onClick={() => {
-                ws.toggleExpanded(conn.id, key);
-                if (!tables && !loading) void ws.loadTables(conn.id, schema);
-              }}
-              onContextMenu={(e) => open(e, () => schemaMenu(schema))}
-            >
-              <Icon name="chevronRight" size={14} className={`chev ${isOpen ? "open" : ""}`} />
-              <Icon name="layers" size={14} style={{ color: "var(--text-faint)" }} />
-              <span className="label">{schema}</span>
-              {tables && <span className="meta">{tables.length}</span>}
-            </div>
-            {isOpen && (
-              <div>
-                {loading && !tables && (
-                  <div className="tree-empty">
-                    <Spinner /> {t("common.loading")}
-                  </div>
-                )}
-                {tables && tables.length === 0 && <div className="tree-empty">{t("sidebar.noTables")}</div>}
-                {visible.map((tb) => (
-                  <TableNode key={tb.name} conn={conn} table={tb} onQuery={onQuery} />
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function TableNode({ conn, table, onQuery }: { conn: ConnectionConfig; table: TableInfo; onQuery: (sql?: string) => void }) {
-  const { t } = useTranslation();
-  const ws = useWorkspace();
-  const toast = useWorkspace((s) => s.toast);
-  const { open } = useContextMenu();
-  const activeTab = ws.tabs.find((x) => x.id === ws.activeTabId);
-  const isActive = activeTab?.connectionId === conn.id && activeTab.schema === table.schema && activeTab.table === table.name;
-  const isView = table.kind !== "table" && table.kind !== "partitioned";
-  const qualified = `${quoteIdent(table.schema, conn.driver)}.${quoteIdent(table.name, conn.driver)}`;
-
-  const openData = () => ws.openTab({ kind: "table", connectionId: conn.id, title: table.name, schema: table.schema, table: table.name });
-  const openStructure = () => ws.openTab({ kind: "structure", connectionId: conn.id, title: table.name, schema: table.schema, table: table.name });
-
-  const countRows = async () => {
-    try {
-      const n = await api.tableCount(conn.id, { schema: table.schema, table: table.name, filters: [], limit: 1, offset: 0 });
-      toast(t("ctx.rows", { name: table.name, count: formatNumber(n) }), "info");
-    } catch (e) {
-      toast(translateError(e), "error");
-    }
-  };
-  const copyColumns = async () => {
-    try {
-      const cols = await api.tableColumns(conn.id, table.schema, table.name);
-      await copyText(cols.map((c) => quoteIdent(c.name, conn.driver)).join(", "));
-    } catch (e) {
-      toast(translateError(e), "error");
-    }
-  };
-  const destructive = async (kind: "truncate" | "drop") => {
-    const msg = kind === "truncate" ? t("ctx.truncateConfirm", { name: qualified }) : t("ctx.dropConfirm", { name: qualified });
-    if (!(await confirmDialog(msg))) return;
-    try {
-      await api.queryRun(conn.id, kind === "truncate" ? `TRUNCATE TABLE ${qualified}` : `DROP TABLE ${qualified}`, 1);
-      toast(kind === "truncate" ? t("ctx.truncated") : t("ctx.dropped"), "success");
-      if (kind === "drop") {
-        ws.tabs.filter((x) => x.connectionId === conn.id && x.table === table.name && x.schema === table.schema).forEach((x) => ws.closeTab(x.id));
-        void ws.loadTables(conn.id, table.schema);
-      } else {
-        window.dispatchEvent(new CustomEvent("osprey-refresh"));
-      }
-    } catch (e) {
-      toast(translateError(e), "error");
-    }
-  };
-
-  const menu = (): ContextMenuItem[] => [
-    { label: t("ctx.openData"), icon: "table", onSelect: openData },
-    { label: t("ctx.structure"), icon: "list", onSelect: openStructure },
-    { label: t("ctx.newQuery"), icon: "fileCode", onSelect: () => onQuery(`SELECT *\nFROM ${qualified}\nLIMIT 100;`) },
-    { label: t("ctx.countRows"), icon: "zap", onSelect: () => void countRows() },
-    { separator: true },
-    {
-      label: t("ctx.copy"),
-      icon: "copy",
-      children: [
-        { label: t("ctx.copyName"), onSelect: () => void copyText(table.name) },
-        { label: t("ctx.copyQualified"), onSelect: () => void copyText(qualified) },
-        { label: t("ctx.copySelect"), onSelect: () => void copyText(`SELECT * FROM ${qualified} LIMIT 100;`) },
-        { label: t("ctx.copyColumns"), onSelect: () => void copyColumns() },
-      ],
-    },
-    { separator: true },
-    { label: t("ctx.refresh"), icon: "refresh", onSelect: () => void ws.loadTables(conn.id, table.schema) },
-    ...(!isView && !conn.readOnly ? ([{ label: t("import.title"), icon: "download", onSelect: () => useUi.getState().set({ importDialog: { connectionId: conn.id, schema: table.schema, table: table.name } }) }] as ContextMenuItem[]) : []),
-    ...(!isView && !conn.readOnly
-      ? ([
-          { separator: true },
-          { label: t("ctx.truncate"), icon: "trash", danger: true, onSelect: () => void destructive("truncate") },
-          { label: t("ctx.drop"), icon: "trash", danger: true, onSelect: () => void destructive("drop") },
-        ] as ContextMenuItem[])
-      : []),
-  ];
-
-  return (
-    <div className={`tree-row tree-indent-2 ${isActive ? "active" : ""}`} onClick={openData} onContextMenu={(e) => open(e, menu)} title={table.comment ?? undefined}>
-      <Icon name="chevronRight" size={14} className="chev hidden" />
-      <Icon name={isView ? "eye" : "table"} size={14} style={{ color: isView ? "var(--purple)" : "var(--accent)" }} />
-      <span className="label">{table.name}</span>
-      {table.rowEstimate != null && table.rowEstimate > 0 && (
-        <span className="meta" title={t("sidebar.rows", { count: table.rowEstimate })}>
-          {compact(table.rowEstimate)}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function compact(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
-  return `${(n / 1_000_000).toFixed(1)}M`;
-}

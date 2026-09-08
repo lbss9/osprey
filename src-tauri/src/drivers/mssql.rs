@@ -484,6 +484,39 @@ impl super::SqlDriver for MssqlDriver {
             .collect())
     }
 
+    async fn list_routines(&self, schema: &str) -> AppResult<Vec<RoutineInfo>> {
+        let d = Dialect::Mssql;
+        let rows = self
+            .rows_text(&format!(
+                "SELECT o.name, o.type,
+                        (SELECT STRING_AGG(CONCAT(p.name, ' ', TYPE_NAME(p.user_type_id)), ', ') WITHIN GROUP (ORDER BY p.parameter_id)
+                         FROM sys.parameters p WHERE p.object_id = o.object_id AND p.parameter_id > 0),
+                        (SELECT TYPE_NAME(p.user_type_id) FROM sys.parameters p WHERE p.object_id = o.object_id AND p.parameter_id = 0)
+                 FROM sys.objects o JOIN sys.schemas s ON s.schema_id = o.schema_id
+                 WHERE s.name = {} AND o.type IN ('P', 'PC', 'FN', 'IF', 'TF', 'FS', 'FT')
+                 ORDER BY o.name",
+                d.quote_literal(schema)
+            ))
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| RoutineInfo {
+                schema: schema.to_string(),
+                name: s(&r[0]),
+                kind: if s(&r[1]).trim().starts_with('P') { "procedure" } else { "function" }.to_string(),
+                args: s(&r[2]),
+                returns: r[3].clone().filter(|v| !v.is_empty()),
+                language: Some("tsql".into()),
+            })
+            .collect())
+    }
+
+    async fn routine_definition(&self, schema: &str, name: &str, _args: &str) -> AppResult<String> {
+        let d = Dialect::Mssql;
+        let rows = self.rows_text(&format!("SELECT OBJECT_DEFINITION(OBJECT_ID({}))", d.quote_literal(&format!("{schema}.{name}")))).await?;
+        rows.into_iter().next().and_then(|r| r.into_iter().next().flatten()).ok_or_else(|| AppError::Query(format!("routine {schema}.{name} not found")))
+    }
+
     async fn structure(&self, schema: &str, table: &str) -> AppResult<TableStructure> {
         let d = Dialect::Mssql;
         let columns = self.columns(schema, table).await?;

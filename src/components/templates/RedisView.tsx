@@ -10,6 +10,7 @@ import Spinner from "@/components/atoms/Spinner";
 import { useContextMenu } from "@/components/molecules/ContextMenu";
 import DataGrid from "@/components/organisms/DataGrid";
 import { useUi } from "@/store/ui";
+import { connectionIdOf } from "@/utils/session";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
@@ -53,7 +54,7 @@ function buildTree(keys: RedisKeyInfo[]): TreeNode {
 /** Redis browser: SCAN-based key list on the left, typed value editor on the right. */
 export default function RedisView({ tab }: { tab: Tab }) {
   const { t } = useTranslation();
-  const conn = useWorkspace((s) => s.connections.find((c) => c.id === tab.connectionId));
+  const conn = useWorkspace((s) => s.connections.find((c) => c.id === connectionIdOf(tab.connectionId)));
   const toast = useWorkspace((s) => s.toast);
   const activeTabId = useWorkspace((s) => s.activeTabId);
   const tree = useUi((s) => s.redisTree);

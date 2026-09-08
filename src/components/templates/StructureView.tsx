@@ -8,6 +8,7 @@ import ToolButton from "@/components/molecules/ToolButton";
 import ConnChip from "@/components/molecules/ConnChip";
 import { useContextMenu } from "@/components/molecules/ContextMenu";
 import { useUi } from "@/store/ui";
+import { connectionIdOf } from "@/utils/session";
 import { useWorkspace } from "@/store/workspace";
 import { confirmDialog } from "@/utils/dialog";
 import * as api from "@/services/tauri";
@@ -21,7 +22,7 @@ export default function StructureView({ tab }: { tab: Tab }) {
   const openTab = useWorkspace((s) => s.openTab);
   const toast = useWorkspace((s) => s.toast);
   const updateTab = useWorkspace((s) => s.updateTab);
-  const conn = useWorkspace((s) => s.connections.find((c) => c.id === tab.connectionId));
+  const conn = useWorkspace((s) => s.connections.find((c) => c.id === connectionIdOf(tab.connectionId)));
   const setUi = useUi((s) => s.set);
   const { open } = useContextMenu();
   const [data, setData] = useState<TableStructure | null>(null);

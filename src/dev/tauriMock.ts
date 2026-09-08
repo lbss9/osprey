@@ -303,7 +303,7 @@ const savedQueries: SavedQuery[] = [{ id: "sq-0", connectionId: "c-pg", name: "A
 function serverInfo(c: ConnectionConfig, database?: string): ServerInfo {
   if (c.driver === "redis") return { driver: "redis", version: "7.4 (mock)", database: database ?? c.database ?? "0", user: null, extra: { keys: Object.keys(redisKeys).length } };
   if (c.driver === "mysql") return { driver: "mysql", version: "8.4 (mock)", database: database ?? c.database, user: c.user, extra: {} };
-  return { driver: "postgres", version: "16.0 (mock)", database: database ?? c.database ?? "demo", user: c.user, extra: {} };
+  return { driver: "postgres", version: "16.0 (mock)", database: database || c.database || "demo", user: c.user, extra: {} };
 }
 
 function conn(id: string): ConnectionConfig {
@@ -313,7 +313,7 @@ function conn(id: string): ConnectionConfig {
 }
 function session(id: string): ConnectionConfig {
   if (!sessions.has(id)) throw "errors.notConnected";
-  return conn(id);
+  return conn(id.split("@")[0]);
 }
 
 /* ---------------------------------- redis --------------------------------- */
@@ -516,6 +516,23 @@ const handlers: Record<string, Handler> = {
     sessions.set(c.id, (database as string | null) ?? undefined);
     c.lastUsedAt = now();
     return serverInfo(c, (database as string | null) ?? undefined);
+  },
+  session_open_database: ({ connectionId, database }) => {
+    const c = conn(connectionId as string);
+    sessions.set(`${c.id}@${database}`, database as string);
+    return serverInfo(c, database as string);
+  },
+  schema_routines: ({ connectionId, schema }) => {
+    session(connectionId as string);
+    if (schema !== "public") return [];
+    return [
+      { schema: "public", name: "adult_count", kind: "function", args: "min_age integer", returns: "integer", language: "sql" },
+      { schema: "public", name: "archive_people", kind: "procedure", args: "", returns: null, language: "plpgsql" },
+    ];
+  },
+  routine_definition: ({ connectionId, name, args }) => {
+    session(connectionId as string);
+    return `CREATE OR REPLACE FUNCTION public.${name}(${args})\n RETURNS integer\n LANGUAGE sql\nAS $function$\n  SELECT count(*)::int FROM people WHERE age >= min_age\n$function$`;
   },
   session_close: ({ connectionId }) => {
     sessions.delete(connectionId as string);

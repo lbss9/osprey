@@ -15,6 +15,7 @@ import StatusBar from "@/components/molecules/StatusBar";
 import DataGrid, { type GridEdits } from "@/components/organisms/DataGrid";
 import FilterBar from "@/components/organisms/FilterBar";
 import { useUi } from "@/store/ui";
+import { connectionIdOf } from "@/utils/session";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { copyText } from "@/utils/clipboard";
@@ -33,7 +34,7 @@ const EMPTY_EDITS: Edits = { cells: {}, deleted: new Set(), inserted: [] };
 /** Browse and edit one table: server-side filters, sort, pagination; batched edits. */
 export default function TableView({ tab }: { tab: Tab }) {
   const { t } = useTranslation();
-  const conn = useWorkspace((s) => s.connections.find((c) => c.id === tab.connectionId));
+  const conn = useWorkspace((s) => s.connections.find((c) => c.id === connectionIdOf(tab.connectionId)));
   const toast = useWorkspace((s) => s.toast);
   const updateTab = useWorkspace((s) => s.updateTab);
   const openTab = useWorkspace((s) => s.openTab);

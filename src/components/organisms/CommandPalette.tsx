@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import Icon, { type IconName } from "@/components/atoms/Icon";
 import Input from "@/components/atoms/Input";
 import { useUi } from "@/store/ui";
+import { connectionIdOf } from "@/utils/session";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import type { SavedQuery } from "@/types";
@@ -68,7 +69,7 @@ export default function CommandPalette({
     if (!open) return [];
     const out: PaletteItem[] = [];
     for (const tab of ws.tabs) {
-      const conn = ws.connections.find((c) => c.id === tab.connectionId);
+      const conn = ws.connections.find((c) => c.id === connectionIdOf(tab.connectionId));
       out.push({
         id: `tab:${tab.id}`,
         label: tab.title,

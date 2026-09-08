@@ -4,6 +4,7 @@ import Icon from "@/components/atoms/Icon";
 import Spinner from "@/components/atoms/Spinner";
 import ToolButton from "@/components/molecules/ToolButton";
 import ConnChip from "@/components/molecules/ConnChip";
+import { connectionIdOf } from "@/utils/session";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
 import { translateError } from "@/i18n";
@@ -13,7 +14,7 @@ import type { Tab } from "@/types";
 /** Server dashboard (Redis INFO sections; basic facts for SQL servers). */
 export default function InfoView({ tab }: { tab: Tab }) {
   const { t } = useTranslation();
-  const conn = useWorkspace((s) => s.connections.find((c) => c.id === tab.connectionId));
+  const conn = useWorkspace((s) => s.connections.find((c) => c.id === connectionIdOf(tab.connectionId)));
   const session = useWorkspace((s) => s.sessions[tab.connectionId]);
   const [info, setInfo] = useState<Record<string, Record<string, string>> | null>(null);
   const [error, setError] = useState<string | null>(null);

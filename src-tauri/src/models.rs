@@ -172,6 +172,20 @@ pub struct ForeignKeyInfo {
     pub on_delete: Option<String>,
 }
 
+/// A stored function or procedure, as listed in the sidebar.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoutineInfo {
+    pub schema: String,
+    pub name: String,
+    /// `function` or `procedure`
+    pub kind: String,
+    /// identity arguments, e.g. `min_age integer, active boolean`
+    pub args: String,
+    pub returns: Option<String>,
+    pub language: Option<String>,
+}
+
 /// Every column of every table in a schema (autocompletion, ER diagram).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

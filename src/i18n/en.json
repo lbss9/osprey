@@ -87,7 +87,14 @@
     "switchDatabase": "Switch database",
     "database": "Database",
     "rows": "{{count}} rows (est.)",
-    "readOnly": "read-only"
+    "readOnly": "read-only",
+    "routines": "Routines",
+    "noViews": "No views",
+    "noRoutines": "No functions or procedures",
+    "openRoutine": "Open source",
+    "callRoutine": "Call in a query tab",
+    "connectedDatabase": "Connected database",
+    "databaseHint": "Expand to open this database on the same connection"
   },
   "welcome": {
     "title": "Welcome to Osprey",

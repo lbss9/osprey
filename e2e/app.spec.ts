@@ -646,6 +646,29 @@ test.describe("shell", () => {
     await expect(page.locator(".tabbar .tab.active .t-label")).toHaveText("Query 5");
   });
 
+  test("object tree: databases, schema folders, second database on its own session, routines", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    const side = page.locator(".sidebar");
+    // database › schema › folders with counts
+    await expect(side.locator(".tree-row.tree-indent-1", { hasText: "demo" })).toBeVisible();
+    await expect(side.locator(".tree-row.folder", { hasText: "Tables" }).first()).toContainText("2");
+    await expect(side.locator(".tree-row.folder", { hasText: "Views" }).first()).toContainText("1");
+    await expect(side.getByText("adults", { exact: true })).toBeVisible();
+    // routines load when the folder opens; clicking one opens its source in a query tab
+    await side.locator(".tree-row.folder", { hasText: "Routines" }).first().click();
+    await expect(side.locator(".routine-badge").first()).toBeVisible();
+    await side.getByText("adult_count", { exact: false }).first().click();
+    await expect(page.locator(".tabbar .tab.active .t-label")).toHaveText("adult_count");
+    await expect(page.locator(".cm-content")).toContainText("CREATE OR REPLACE FUNCTION");
+    // a second database expands on its own session and lists its schemas
+    await side.locator(".tree-row.tree-indent-1", { hasText: "postgres" }).click();
+    await expect(side.locator(".tree-row.tree-indent-2", { hasText: "public" })).toHaveCount(2);
+    // a table opened from it carries the database in the connection chip
+    await side.locator(".tree-row.tree-indent-4", { hasText: "orders" }).nth(1).click();
+    await expect(page.locator(".conn-chip:visible").first()).toContainText("postgres");
+  });
+
   test("tabs close with confirmation when dirty", async ({ page }) => {
     await openApp(page);
     await connect(page, "Demo Postgres");
