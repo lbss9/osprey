@@ -400,7 +400,9 @@
     "localeHint": "How numbers and dates look in grids; copying and editing always use the raw value.",
     "localeAuto": "Follow system",
     "formatValues": "Format numbers and dates in grids",
-    "formatValuesHint": "1234567.5 → 1,234,567.5 and 2026-12-31 → 12/31/26"
+    "formatValuesHint": "1234567.5 → 1,234,567.5 and 2026-12-31 → 12/31/26",
+    "recordHistory": "Save query history",
+    "recordHistoryHint": "Statements you run are kept in the local database (with any literal values they contain). Turn off for sensitive data; Clear removes what is already saved."
   },
   "update": {
     "title": "Osprey {{version}} is ready",

@@ -400,7 +400,9 @@
     "localeHint": "Como números e datas aparecem nas grades; copiar e editar sempre usam o valor bruto.",
     "localeAuto": "Seguir o sistema",
     "formatValues": "Formatar números e datas nas grades",
-    "formatValuesHint": "1234567.5 → 1.234.567,5 e 2026-12-31 → 31/12/2026"
+    "formatValuesHint": "1234567.5 → 1.234.567,5 e 2026-12-31 → 31/12/2026",
+    "recordHistory": "Salvar histórico de consultas",
+    "recordHistoryHint": "As consultas executadas ficam no banco local (com os valores literais que contiverem). Desligue para dados sensíveis; Limpar apaga o que já foi salvo."
   },
   "update": {
     "title": "Osprey {{version}} está pronto",

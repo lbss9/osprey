@@ -499,6 +499,10 @@ test.describe("shell", () => {
     await openApp(page);
     await page.keyboard.press("Control+,");
     await page.locator(".dialog").getByRole("button", { name: "Appearance" }).click();
+    expect(await page.locator(".theme-card").count()).toBeGreaterThanOrEqual(28); // auto + 2 built-in + 25 presets + nord
+    await page.locator(".theme-card[data-theme-id='vampire']").click();
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim())).toBe("#bd93f9");
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent-soft").trim().length > 0)).toBe(true);
     await page.locator(".theme-card[data-theme-id='nord']").click();
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim())).toBe("#88c0d0");
     await expect.poll(() => page.evaluate(() => document.documentElement.dataset.themeId)).toBe("nord");

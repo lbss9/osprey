@@ -28,6 +28,7 @@ pub async fn query_run(
     sql: String,
     max_rows: Option<usize>,
     stream_id: Option<String>,
+    record_history: Option<bool>,
 ) -> CmdResult<Vec<ResultSet>> {
     use tauri::Emitter;
     let s = state.session(&connection_id).await?.sql()?;
@@ -58,8 +59,10 @@ pub async fn query_run(
         }),
         error: outcome.as_ref().err().map(|e| e.to_string()),
     };
-    if let Ok(db) = state.lock_db() {
-        let _ = repo::add(&db, &entry);
+    if record_history.unwrap_or(true) {
+        if let Ok(db) = state.lock_db() {
+            let _ = repo::add(&db, &entry);
+        }
     }
     Ok(outcome?)
 }

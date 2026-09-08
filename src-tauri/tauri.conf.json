@@ -24,7 +24,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'self' blob:",
+      "devCsp": "default-src 'self' http://localhost:1430; script-src 'self' 'unsafe-inline' http://localhost:1430; style-src 'self' 'unsafe-inline' http://localhost:1430; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:1430 ws://localhost:1430; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'self' blob:"
     }
   },
   "bundle": {
@@ -41,7 +42,7 @@
     "publisher": "Luan Barbosa",
     "category": "DeveloperTool",
     "shortDescription": "A fast, beautiful database client",
-    "longDescription": "Osprey is a lightweight desktop client for PostgreSQL, MySQL and Redis. Rust engine, Tauri shell, everything stored locally.",
+    "longDescription": "Osprey is a lightweight desktop client for PostgreSQL, MySQL/MariaDB, Redis, SQLite, ClickHouse and SQL Server. Rust engine, Tauri shell, everything stored locally.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

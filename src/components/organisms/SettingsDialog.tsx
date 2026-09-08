@@ -158,6 +158,7 @@ export default function SettingsDialog() {
                   </Button>
                 </SettingRow>
                 <SettingRow label={t("settings.credentials")} desc={secretsOk ? t("settings.credentialsOk") : t("settings.credentialsFallback")} />
+                <ToggleRow label={t("settings.recordHistory")} desc={t("settings.recordHistoryHint")} checked={ui.recordHistory} onChange={(v) => ui.set({ recordHistory: v })} />
                 <SettingRow label={t("settings.clearHistory")}>
                   <Button
                     variant="danger"

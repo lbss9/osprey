@@ -35,6 +35,8 @@ interface UiState {
   queryLimit: number;
   safeMode: boolean;
   confirmClose: boolean;
+  /** keep query history in the local database (off: nothing is written) */
+  recordHistory: boolean;
   redisTree: boolean;
   /** list pg_catalog / information_schema / templates / mysql / sys */
   showSystemObjects: boolean;
@@ -68,6 +70,7 @@ export const useUi = create<UiState>()(
       queryLimit: 1000,
       safeMode: true,
       confirmClose: true,
+      recordHistory: true,
       redisTree: true,
       showSystemObjects: false,
       settingsOpen: false,
@@ -100,6 +103,7 @@ export const useUi = create<UiState>()(
         queryLimit: s.queryLimit,
         safeMode: s.safeMode,
         confirmClose: s.confirmClose,
+        recordHistory: s.recordHistory,
         redisTree: s.redisTree,
         showSystemObjects: s.showSystemObjects,
       }),

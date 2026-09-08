@@ -20,6 +20,8 @@ pub struct ClickhouseDriver {
     user: String,
     password: String,
     database: String,
+    /// `readonly=2` on every request when the connection is read-only
+    read_only: bool,
     /// query_id of the statement in flight (for KILL QUERY)
     running: Mutex<Option<String>>,
 }
@@ -47,6 +49,7 @@ impl ClickhouseDriver {
                 .map(str::to_string)
                 .filter(|d| !d.is_empty())
                 .unwrap_or_else(|| if cfg.database.is_empty() { "default".into() } else { cfg.database.clone() }),
+            read_only: cfg.read_only,
             running: Mutex::new(None),
         };
         // fail early with a clear auth / connect error
@@ -66,6 +69,10 @@ impl ClickhouseDriver {
         ];
         if let Some(id) = query_id {
             params.push(("query_id", id.to_string()));
+        }
+        if self.read_only {
+            // 2 = reads only, SET still allowed (1 would also block settings)
+            params.push(("readonly", "2".into()));
         }
         let resp = self
             .http

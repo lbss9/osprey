@@ -5,6 +5,8 @@
  * token on top of it, so a user can restyle the app without touching code.
  */
 
+import { PRESETS } from "@/theme/presets";
+
 export interface Theme {
   id: string;
   name: string;
@@ -33,6 +35,29 @@ export const AUTO_ID = "auto";
 export const BUILTIN: Theme[] = [
   { id: "dark", name: "Osprey Dark", type: "dark", author: "Osprey", colors: {} },
   { id: "light", name: "Osprey Light", type: "light", author: "Osprey", colors: {} },
+  ...PRESETS,
+];
+
+/**
+ * Tokens a theme may leave out: derived from the ones it sets, so a JSON
+ * theme with ~20 colours still gets consistent badges, selections and
+ * driver colours. Only filled when the theme sets the base token and not
+ * the derived one.
+ */
+const DERIVED: [string, string, string][] = [
+  // derived, base, expression (CSS color-mix keeps it theme-independent)
+  ["accent-soft", "accent", "color-mix(in srgb, var(--accent) 18%, var(--bg))"],
+  ["amber-soft", "amber", "color-mix(in srgb, var(--amber) 18%, var(--bg))"],
+  ["green-soft", "green", "color-mix(in srgb, var(--green) 18%, var(--bg))"],
+  ["red-soft", "red", "color-mix(in srgb, var(--red) 18%, var(--bg))"],
+  ["sel", "accent", "color-mix(in srgb, var(--accent) 16%, transparent)"],
+  ["sel-line", "accent", "color-mix(in srgb, var(--accent) 60%, transparent)"],
+  ["pg", "accent", "var(--accent)"],
+  ["mysql", "amber", "var(--amber)"],
+  ["redis", "red", "var(--red)"],
+  ["sqlite", "green", "var(--green)"],
+  ["clickhouse", "amber", "var(--amber)"],
+  ["mssql", "purple", "var(--purple)"],
 ];
 
 const TOKEN_RE = /^[a-z0-9-]+$/;
@@ -68,6 +93,12 @@ export function applyTheme(theme: Theme) {
   for (const [k, v] of Object.entries(theme.colors)) {
     root.style.setProperty(`--${k}`, v);
     applied.push(k);
+  }
+  for (const [derived, base, expr] of DERIVED) {
+    if (theme.colors[base] && !theme.colors[derived]) {
+      root.style.setProperty(`--${derived}`, expr);
+      applied.push(derived);
+    }
   }
   if (theme.fonts?.system) {
     root.style.setProperty("--sans", theme.fonts.system);

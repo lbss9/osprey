@@ -51,15 +51,51 @@ impl SshConfig {
     }
 }
 
-struct Client;
+/// Host-key policy: the same as OpenSSH with `StrictHostKeyChecking=accept-new`.
+/// A host seen for the first time is recorded in `~/.ssh/known_hosts`; a host
+/// whose key changed is refused and the connection fails with a clear message.
+struct Client {
+    host: String,
+    port: u16,
+    /// filled when the key was refused, so the caller can explain why
+    problem: Arc<std::sync::Mutex<Option<String>>>,
+}
 
 impl client::Handler for Client {
     type Error = russh::Error;
 
-    // Trust on first use: the GUI has no known_hosts UI yet, and the tunnel
-    // only forwards a database connection the user asked for.
-    async fn check_server_key(&mut self, _key: &russh::keys::PublicKeyOrCertificate) -> Result<bool, Self::Error> {
-        Ok(true)
+    async fn check_server_key(&mut self, key: &russh::keys::PublicKeyOrCertificate) -> Result<bool, Self::Error> {
+        use russh::keys::known_hosts::learn_known_hosts;
+        use russh::keys::{check_known_hosts, PublicKeyOrCertificate};
+        let pubkey: russh::keys::PublicKey = match key {
+            PublicKeyOrCertificate::PublicKey { key, .. } => key.clone(),
+            PublicKeyOrCertificate::Certificate(c) => russh::keys::PublicKey::from(c.public_key().clone()),
+        };
+        let fingerprint = pubkey.fingerprint(russh::keys::HashAlg::Sha256).to_string();
+        match check_known_hosts(&self.host, self.port, &pubkey) {
+            Ok(true) => Ok(true),
+            Ok(false) => {
+                // first contact: remember the key like `ssh` does with accept-new
+                if let Err(e) = learn_known_hosts(&self.host, self.port, &pubkey) {
+                    log::warn!("ssh: could not record host key for {}:{} ({e}); trusting it for this session", self.host, self.port);
+                } else {
+                    log::info!("ssh: recorded host key {fingerprint} for {}:{} in known_hosts", self.host, self.port);
+                }
+                Ok(true)
+            }
+            Err(russh::keys::Error::KeyChanged { line }) => {
+                *self.problem.lock().unwrap() = Some(format!(
+                    "the SSH host key of {}:{} changed ({fingerprint}). If the server was reinstalled, remove line {line} of ~/.ssh/known_hosts; otherwise someone may be intercepting the connection",
+                    self.host, self.port
+                ));
+                Ok(false)
+            }
+            Err(e) => {
+                // unreadable known_hosts: do not block the user, but say so
+                log::warn!("ssh: known_hosts check failed for {}:{} ({e}); trusting {fingerprint} for this session", self.host, self.port);
+                Ok(true)
+            }
+        }
     }
 }
 
@@ -83,10 +119,15 @@ impl SshTunnel {
             ..Default::default()
         });
         let addr = (cfg.host.as_str(), cfg.port);
-        let mut handle = tokio::time::timeout(cfg.connect_timeout, client::connect(config, addr, Client))
+        let problem = Arc::new(std::sync::Mutex::new(None::<String>));
+        let handler = Client { host: cfg.host.clone(), port: cfg.port, problem: problem.clone() };
+        let mut handle = tokio::time::timeout(cfg.connect_timeout, client::connect(config, addr, handler))
             .await
             .map_err(|_| AppError::Connect(format!("ssh {}:{}: timeout", cfg.host, cfg.port)))?
-            .map_err(|e| AppError::Connect(format!("ssh {}:{}: {e}", cfg.host, cfg.port)))?;
+            .map_err(|e| match problem.lock().unwrap().take() {
+                Some(msg) => AppError::Tls(msg),
+                None => AppError::Connect(format!("ssh {}:{}: {e}", cfg.host, cfg.port)),
+            })?;
 
         let result = if cfg.auth == "key" {
             let path = cfg

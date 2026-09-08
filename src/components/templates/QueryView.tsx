@@ -102,7 +102,7 @@ export default function QueryView({ tab }: { tab: Tab }) {
       if (!raf) raf = requestAnimationFrame(paint);
     });
     try {
-      const sets = await api.queryRun(tab.connectionId, text, limit, streamId);
+      const sets = await api.queryRun(tab.connectionId, text, limit, streamId, useUi.getState().recordHistory);
       if (raf) cancelAnimationFrame(raf);
       const merged = sets.map((s, i) => (s.streamed ? { ...s, rows: partial[i]?.rows ?? [], columns: s.columns.length ? s.columns : partial[i]?.columns ?? [] } : s));
       setResults(merged);
