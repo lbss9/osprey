@@ -79,13 +79,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-          # macOS signing/notarization — leave the secrets empty to ship unsigned builds
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS signing/notarization: add APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+          # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID here once there is
+          # an Apple Developer account. They must be absent (not empty) for unsigned builds:
+          # an empty APPLE_CERTIFICATE makes the bundler try to import a keychain certificate.
         with:
           tagName: v__VERSION__
           releaseName: "Osprey v__VERSION__"
