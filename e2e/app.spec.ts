@@ -608,6 +608,25 @@ test.describe("shell", () => {
     await expect(page.locator(".g-row").first()).toContainText("Person 1");
   });
 
+  test("filter bar shows the SQL the grid runs", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    await page.locator(".sidebar").getByText("people", { exact: true }).click();
+    await expect(page.locator(".g-row").first()).toBeVisible();
+    await page.locator(".toolbar").getByRole("button", { name: "Filter" }).click();
+    const bar = page.locator(".filterbar");
+    await bar.getByRole("button", { name: "SQL", exact: true }).click();
+    await expect(page.locator(".table-sql-body")).toContainText('SELECT * FROM "public"."people"');
+    await bar.getByRole("button", { name: "Filter" }).click();
+    await bar.getByPlaceholder("Value").fill("Person 1");
+    await bar.getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator(".table-sql-body")).toContainText("WHERE");
+    await expect(page.locator(".table-sql-body")).toContainText("Person 1");
+    await page.getByRole("button", { name: "Open in a query tab" }).click();
+    await expect(page.locator(".tabbar .tab.active .t-label")).toHaveText("Query");
+    await expect(page.locator(".cm-content")).toContainText("WHERE");
+  });
+
   test("tabs close with confirmation when dirty", async ({ page }) => {
     await openApp(page);
     await connect(page, "Demo Postgres");

@@ -16,6 +16,7 @@ import FilterBar from "@/components/organisms/FilterBar";
 import { useUi } from "@/store/ui";
 import { useWorkspace } from "@/store/workspace";
 import * as api from "@/services/tauri";
+import { copyText } from "@/utils/clipboard";
 import { translateError } from "@/i18n";
 import { cellText, formatDuration, formatNumber, quoteIdent, rowToInsert, modKey } from "@/utils/format";
 import type { Cell, ColumnInfo, EditValue, ResultSet, RowChange, SortSpec, Tab, TableFilter, TablePageRequest } from "@/types";
@@ -59,6 +60,8 @@ export default function TableView({ tab }: { tab: Tab }) {
   const [viewer, setViewer] = useState<{ r: number; c: number } | null>(null);
   const reqSeq = useRef(0);
   const appliedFilters = useRef<{ filters: TableFilter[]; raw: string | null }>({ filters: [], raw: null });
+  const [showSql, setShowSql] = useState(false);
+  const [currentSql, setCurrentSql] = useState<string>("");
 
   const buildReq = useCallback(
     (limit = pageSize, off = offset): TablePageRequest => ({
@@ -79,6 +82,8 @@ export default function TableView({ tab }: { tab: Tab }) {
     setError(null);
     try {
       const req = buildReq();
+      // the statement the grid runs, kept in sync with every reload
+      api.tableSql(tab.connectionId, req).then((sql) => seq === reqSeq.current && setCurrentSql(sql)).catch(() => {});
       const res = await api.tablePage(tab.connectionId, req);
       if (seq !== reqSeq.current) return;
       setResult(res);
@@ -294,7 +299,38 @@ export default function TableView({ tab }: { tab: Tab }) {
         )}
       </div>
       {showFilters && columns.length > 0 && (
-        <FilterBar columns={columns} filters={filters} rawWhere={rawWhere} onChange={setFilters} onRawChange={setRawWhere} onApply={applyFilters} />
+        <FilterBar
+          columns={columns}
+          filters={filters}
+          rawWhere={rawWhere}
+          onChange={setFilters}
+          onRawChange={setRawWhere}
+          onApply={applyFilters}
+          sqlShown={showSql}
+          onToggleSql={() => setShowSql((v) => !v)}
+        />
+      )}
+      {showSql && showFilters && (
+        <div className="table-sql">
+          <div className="table-sql-head">
+            <span>{t("filters.currentSql")}</span>
+            <span className="grow" />
+            <ToolButton
+              icon="copy"
+              title={t("common.copy")}
+              onClick={() => {
+                void copyText(`${currentSql};`);
+                toast(t("grid.copied"), "success");
+              }}
+            />
+            <ToolButton
+              icon="fileCode"
+              title={t("filters.openInQuery")}
+              onClick={() => openTab({ kind: "query", connectionId: tab.connectionId, title: t("tabs.query"), sql: `${currentSql};\n` }, { reuse: false })}
+            />
+          </div>
+          <pre className="table-sql-body">{currentSql}</pre>
+        </div>
       )}
       {error ? (
         <div className="messages">

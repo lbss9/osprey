@@ -5,6 +5,14 @@ use crate::models::{ApplyChangesRequest, ApplyChangesResult, ResultSet, TablePag
 use crate::state::AppState;
 use crate::store::connections as repo;
 
+/// The SELECT the table view runs for this request (filters, sort, paging),
+/// so the user can see, copy or reuse it.
+#[tauri::command]
+pub async fn table_sql(state: State<'_, AppState>, connection_id: String, req: TablePageRequest) -> CmdResult<String> {
+    let s = state.session(&connection_id).await?.sql()?;
+    Ok(s.dialect().select_page(&req)?)
+}
+
 /// One page of a table, with the grid's filters and sort applied server-side.
 /// Column types come from the catalog so the grid can render/edit properly.
 #[tauri::command]

@@ -665,6 +665,37 @@ const handlers: Record<string, Handler> = {
     if (i >= 0) savedQueries.splice(i, 1);
   },
 
+  table_sql: ({ connectionId, req }) => {
+    session(connectionId as string);
+    const r = req as TablePageRequest;
+    const q = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
+    const where: string[] = r.filters
+      .filter((f) => f.column)
+      .map((f) => {
+        const c = q(f.column);
+        const v = f.value ?? "";
+        switch (f.op) {
+          case "contains": return `${c}::text ILIKE ${lit(`%${v}%`)}`;
+          case "starts": return `${c}::text ILIKE ${lit(`${v}%`)}`;
+          case "ends": return `${c}::text ILIKE ${lit(`%${v}`)}`;
+          case "isnull": return `${c} IS NULL`;
+          case "notnull": return `${c} IS NOT NULL`;
+          case "in": return `${c} IN (${v.split(",").map((x) => lit(x.trim())).join(", ")})`;
+          case "neq": return `${c} <> ${lit(v)}`;
+          case "gt": return `${c} > ${lit(v)}`;
+          case "gte": return `${c} >= ${lit(v)}`;
+          case "lt": return `${c} < ${lit(v)}`;
+          case "lte": return `${c} <= ${lit(v)}`;
+          default: return `${c} = ${lit(v)}`;
+        }
+      });
+    if (r.rawWhere?.trim()) where.push(`(${r.rawWhere.trim()})`);
+    let sql = `SELECT * FROM ${q(r.schema)}.${q(r.table)}`;
+    if (where.length) sql += ` WHERE ${where.join(" AND ")}`;
+    if (r.sort) sql += ` ORDER BY ${q(r.sort.column)} ${r.sort.desc ? "DESC" : "ASC"}`;
+    return `${sql} LIMIT ${r.limit} OFFSET ${r.offset}`;
+  },
   table_page: ({ connectionId, req }) => {
     session(connectionId as string);
     const r = req as TablePageRequest;

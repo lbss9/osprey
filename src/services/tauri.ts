@@ -90,6 +90,7 @@ export const savedQueryDelete = (id: string) => invoke<void>("saved_query_delete
 
 /* ---------------------------------- table --------------------------------- */
 
+export const tableSql = (connectionId: string, req: TablePageRequest) => invoke<string>("table_sql", { connectionId, req });
 export const tablePage = (connectionId: string, req: TablePageRequest) =>
   invoke<ResultSet>("table_page", { connectionId, req });
 export const tableCount = (connectionId: string, req: TablePageRequest) =>

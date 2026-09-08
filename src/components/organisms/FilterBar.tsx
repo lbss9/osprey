@@ -16,6 +16,8 @@ export default function FilterBar({
   onChange,
   onRawChange,
   onApply,
+  sqlShown,
+  onToggleSql,
 }: {
   columns: ResultColumn[];
   filters: TableFilter[];
@@ -23,6 +25,9 @@ export default function FilterBar({
   onChange: (filters: TableFilter[]) => void;
   onRawChange: (raw: string | null) => void;
   onApply: () => void;
+  /** the "show SQL" toggle: what the grid is running right now */
+  sqlShown?: boolean;
+  onToggleSql?: () => void;
 }) {
   const { t } = useTranslation();
   const update = (i: number, patch: Partial<TableFilter>) => onChange(filters.map((f, j) => (j === i ? { ...f, ...patch } : f)));
@@ -65,6 +70,11 @@ export default function FilterBar({
           </Button>
         )}
         <span className="grow" style={{ flex: 1 }} />
+        {onToggleSql && (
+          <Button size="sm" variant={sqlShown ? "secondary" : "ghost"} active={sqlShown} onClick={onToggleSql} title={t("filters.showSqlHint")}>
+            <Icon name="terminal" size={13} /> {sqlShown ? t("filters.hideSql") : t("filters.showSql")}
+          </Button>
+        )}
         {(filters.length > 0 || rawWhere) && (
           <Button
             size="sm"

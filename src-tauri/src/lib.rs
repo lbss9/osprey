@@ -94,6 +94,7 @@ pub fn run() {
             saved_query_save,
             saved_query_delete,
             table_page,
+            table_sql,
             table_count,
             table_apply,
             redis_scan,

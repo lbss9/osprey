@@ -228,7 +228,12 @@
       "isnull": "está vazio (NULL)",
       "notnull": "não está vazio",
       "in": "é um de (a, b, c)"
-    }
+    },
+    "showSql": "SQL",
+    "hideSql": "Ocultar SQL",
+    "showSqlHint": "Mostra a consulta que a grade está executando, com filtros, ordenação e paginação aplicados",
+    "currentSql": "SQL atual",
+    "openInQuery": "Abrir em uma aba de consulta"
   },
   "changes": {
     "pending": "{{count}} alteração pendente",

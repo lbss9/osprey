@@ -228,7 +228,12 @@
       "isnull": "is empty (NULL)",
       "notnull": "is not empty",
       "in": "is one of (a, b, c)"
-    }
+    },
+    "showSql": "SQL",
+    "hideSql": "Hide SQL",
+    "showSqlHint": "Show the statement the grid is running, with the applied filters, sort and paging",
+    "currentSql": "Current SQL",
+    "openInQuery": "Open in a query tab"
   },
   "changes": {
     "pending": "{{count}} pending change",
