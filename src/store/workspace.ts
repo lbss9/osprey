@@ -297,10 +297,17 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
       }
     }
     const id = tab.id ?? `tab-${tabSeq++}`;
+    // several "Query" tabs on one connection get a number instead of all
+    // showing the connection name as a disambiguator
+    let title = tab.title;
+    if (tab.kind === "query") {
+      let k = 1;
+      while (tabs.some((t) => t.connectionId === tab.connectionId && t.title === title)) title = `${tab.title} ${++k}`;
+    }
     const active = get().activeTabId;
     const idx = tabs.findIndex((t) => t.id === active);
     const next = [...tabs];
-    next.splice(idx >= 0 ? idx + 1 : tabs.length, 0, { ...tab, id });
+    next.splice(idx >= 0 ? idx + 1 : tabs.length, 0, { ...tab, id, title });
     set({ tabs: next, activeTabId: id });
     return id;
   },

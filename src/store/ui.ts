@@ -28,6 +28,8 @@ interface UiState {
   editorFontSize: number;
   zoom: number;
   sidebarWidth: number;
+  /** width of the "current SQL" drawer on the right of a table grid */
+  sqlDrawerWidth: number;
   showSidebar: boolean;
   pageSize: number;
   queryLimit: number;
@@ -60,6 +62,7 @@ export const useUi = create<UiState>()(
       editorFontSize: 13,
       zoom: 1,
       sidebarWidth: 260,
+      sqlDrawerWidth: 380,
       showSidebar: true,
       pageSize: 200,
       queryLimit: 1000,
@@ -91,6 +94,7 @@ export const useUi = create<UiState>()(
         editorFontSize: s.editorFontSize,
         zoom: s.zoom,
         sidebarWidth: s.sidebarWidth,
+        sqlDrawerWidth: s.sqlDrawerWidth,
         showSidebar: s.showSidebar,
         pageSize: s.pageSize,
         queryLimit: s.queryLimit,

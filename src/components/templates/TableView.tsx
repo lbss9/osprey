@@ -4,6 +4,7 @@ const ValueDialog = lazy(() => import("@/components/molecules/ValueDialog"));
 import { useTranslation } from "react-i18next";
 import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
+import Resizer from "@/components/atoms/Resizer";
 import Icon from "@/components/atoms/Icon";
 import Dropdown from "@/components/molecules/Dropdown";
 import ToolButton from "@/components/molecules/ToolButton";
@@ -61,6 +62,8 @@ export default function TableView({ tab }: { tab: Tab }) {
   const reqSeq = useRef(0);
   const appliedFilters = useRef<{ filters: TableFilter[]; raw: string | null }>({ filters: [], raw: null });
   const [showSql, setShowSql] = useState(false);
+  const sqlDrawerWidth = useUi((s) => s.sqlDrawerWidth);
+  const setUi = useUi((s) => s.set);
   const [currentSql, setCurrentSql] = useState<string>("");
 
   const buildReq = useCallback(
@@ -310,28 +313,7 @@ export default function TableView({ tab }: { tab: Tab }) {
           onToggleSql={() => setShowSql((v) => !v)}
         />
       )}
-      {showSql && showFilters && (
-        <div className="table-sql">
-          <div className="table-sql-head">
-            <span>{t("filters.currentSql")}</span>
-            <span className="grow" />
-            <ToolButton
-              icon="copy"
-              title={t("common.copy")}
-              onClick={() => {
-                void copyText(`${currentSql};`);
-                toast(t("grid.copied"), "success");
-              }}
-            />
-            <ToolButton
-              icon="fileCode"
-              title={t("filters.openInQuery")}
-              onClick={() => openTab({ kind: "query", connectionId: tab.connectionId, title: t("tabs.query"), sql: `${currentSql};\n` }, { reuse: false })}
-            />
-          </div>
-          <pre className="table-sql-body">{currentSql}</pre>
-        </div>
-      )}
+      <div className="table-main">
       {error ? (
         <div className="messages">
           <span className="err">{error}</span>
@@ -355,6 +337,35 @@ export default function TableView({ tab }: { tab: Tab }) {
           onCopyAsInsert={(row) => rowToInsert(columns, row, qualified, driver)}
         />
       )}
+      {showSql && (
+        <>
+          <Resizer direction="vertical" onDrag={(d) => setUi({ sqlDrawerWidth: Math.min(900, Math.max(240, sqlDrawerWidth - d)) })} />
+          <aside className="sql-drawer" style={{ width: sqlDrawerWidth }}>
+            <div className="sql-drawer-head">
+              <Icon name="terminal" size={13} />
+              <span>{t("filters.currentSql")}</span>
+              <span className="grow" />
+              <ToolButton
+                icon="copy"
+                title={t("common.copy")}
+                onClick={() => {
+                  void copyText(`${currentSql};`);
+                  toast(t("grid.copied"), "success");
+                }}
+              />
+              <ToolButton
+                icon="fileCode"
+                title={t("filters.openInQuery")}
+                onClick={() => openTab({ kind: "query", connectionId: tab.connectionId, title: t("tabs.query"), sql: `${currentSql};\n` }, { reuse: false })}
+              />
+              <ToolButton icon="x" title={t("common.close")} onClick={() => setShowSql(false)} />
+            </div>
+            <pre className="table-sql-body">{currentSql}</pre>
+            <div className="sql-drawer-foot">{t("filters.currentSqlHint")}</div>
+          </aside>
+        </>
+      )}
+      </div>
       {changeCount > 0 && (
         <div className="changes-bar">
           <Icon name="pencil" size={15} />

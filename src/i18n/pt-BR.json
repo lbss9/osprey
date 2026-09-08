@@ -178,7 +178,8 @@
     "info": "Info",
     "closeOthers": "Fechar as outras",
     "closeAll": "Fechar todas",
-    "closeConfirm": "Esta aba tem alterações pendentes. Fechar mesmo assim?"
+    "closeConfirm": "Esta aba tem alterações pendentes. Fechar mesmo assim?",
+    "list": "Abas abertas ({{count}})"
   },
   "grid": {
     "empty": "Nenhuma linha",
@@ -233,7 +234,8 @@
     "hideSql": "Ocultar SQL",
     "showSqlHint": "Mostra a consulta que a grade está executando, com filtros, ordenação e paginação aplicados",
     "currentSql": "SQL atual",
-    "openInQuery": "Abrir em uma aba de consulta"
+    "openInQuery": "Abrir em uma aba de consulta",
+    "currentSqlHint": "Atualiza a cada recarga: filtros, ordenação e paginação como o servidor recebe."
   },
   "changes": {
     "pending": "{{count}} alteração pendente",

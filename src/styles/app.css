@@ -1002,9 +1002,10 @@ kbd {
   display: flex;
   align-items: center;
   gap: 7px;
-  min-width: 120px;
-  max-width: 220px;
-  padding: 0 8px 0 12px;
+  flex: 0 1 auto;
+  min-width: 128px;
+  max-width: 240px;
+  padding: 0 6px 0 12px;
   border-right: 1px solid var(--line);
   color: var(--text-soft);
   cursor: pointer;
@@ -1037,17 +1038,25 @@ kbd {
   color: var(--accent);
 }
 .tab .t-label {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 40px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.95em;
 }
 .tab .t-sub {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-faint);
   font-size: 0.8em;
 }
 .tab .t-close {
+  flex: none;
   width: 18px;
   height: 18px;
   border-radius: 5px;
@@ -3106,32 +3115,56 @@ kbd {
   stroke-width: 1.5;
 }
 
-/* ------------------------------ current SQL ------------------------------- */
-.table-sql {
-  border-bottom: 1px solid var(--line);
-  background: var(--panel-2);
-  padding: 6px 12px 8px;
+
+/* ------------------------- table grid + SQL drawer ------------------------- */
+.table-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.table-main > .grid-wrap,
+.table-main > .messages {
+  flex: 1;
+  min-width: 0;
+}
+.sql-drawer {
+  flex: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
 }
-.table-sql-head {
+.sql-drawer-head {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--line);
   font-size: 0.8em;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
-.table-sql-body {
+.sql-drawer .table-sql-body {
+  flex: 1;
+  min-height: 0;
   margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
   font-family: var(--mono);
   font-size: var(--editor-font-size);
+  line-height: 1.55;
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 140px;
-  overflow: auto;
+}
+.sql-drawer-foot {
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: 0.85em;
 }

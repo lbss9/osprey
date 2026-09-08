@@ -178,7 +178,8 @@
     "info": "Info",
     "closeOthers": "Close others",
     "closeAll": "Close all",
-    "closeConfirm": "This tab has unsaved changes. Close anyway?"
+    "closeConfirm": "This tab has unsaved changes. Close anyway?",
+    "list": "Open tabs ({{count}})"
   },
   "grid": {
     "empty": "No rows",
@@ -233,7 +234,8 @@
     "hideSql": "Hide SQL",
     "showSqlHint": "Show the statement the grid is running, with the applied filters, sort and paging",
     "currentSql": "Current SQL",
-    "openInQuery": "Open in a query tab"
+    "openInQuery": "Open in a query tab",
+    "currentSqlHint": "Updated on every reload: filters, sort and paging as the server receives them."
   },
   "changes": {
     "pending": "{{count}} pending change",

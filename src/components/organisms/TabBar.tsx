@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { modKey } from "@/utils/format";
 import Button from "@/components/atoms/Button";
@@ -32,9 +32,40 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
   const connections = useWorkspace((s) => s.connections);
   const confirmClose = useUi((s) => s.confirmClose);
   const moveTab = useWorkspace((s) => s.moveTab);
-  const { open } = useContextMenu();
+  const { open, openBelow } = useContextMenu();
+  const strip = useRef<HTMLDivElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+
+  // keep the active tab in view and let the wheel scroll the strip sideways
+  useEffect(() => {
+    const el = strip.current?.querySelector<HTMLElement>(".tab.active");
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeTabId, tabs.length]);
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const check = () => setOverflowing(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tabs.length]);
+
+  const listTabs = (el: HTMLElement) =>
+    openBelow(
+      el,
+      tabs.map((tab) => {
+        const conn = connections.find((c) => c.id === tab.connectionId);
+        return {
+          label: conn ? `${tab.title}  ·  ${conn.name}` : tab.title,
+          icon: ICON[tab.kind],
+          checked: tab.id === activeTabId,
+          onSelect: () => setActive(tab.id),
+        };
+      }),
+    );
 
   const tryClose = async (tab: Tab) => {
     if (tab.dirty && confirmClose && !(await confirmDialog(t("tabs.closeConfirm")))) return;
@@ -47,7 +78,13 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
 
   return (
     <div className="tabbar">
-      <div className="tabs">
+      <div
+        className="tabs"
+        ref={strip}
+        onWheel={(e) => {
+          if (strip.current && e.deltaY !== 0 && Math.abs(e.deltaX) < Math.abs(e.deltaY)) strip.current.scrollLeft += e.deltaY;
+        }}
+      >
         {tabs.map((tab, i) => {
           const conn = connections.find((c) => c.id === tab.connectionId);
           return (
@@ -95,7 +132,9 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
                 <Icon name={ICON[tab.kind]} size={14} />
               </span>
               <span className="t-label">{tab.title}</span>
-              {tabs.filter((x) => x.title === tab.title).length > 1 && conn && <span className="t-sub">{conn.name}</span>}
+              {conn && tabs.some((x) => x.id !== tab.id && x.title === tab.title && x.connectionId !== tab.connectionId) && (
+                <span className="t-sub">{conn.name}</span>
+              )}
               <Button
                 variant="bare"
                 className="t-close"
@@ -113,6 +152,9 @@ export default function TabBar({ onNewQuery }: { onNewQuery: () => void }) {
         })}
       </div>
       <div className="tab-actions">
+        {(overflowing || tabs.length > 6) && (
+          <ToolButton icon="chevronDown" title={t("tabs.list", { count: tabs.length })} onClick={(e) => listTabs(e.currentTarget as HTMLElement)} />
+        )}
         <ToolButton icon="plus" title={`${t("menu.newQuery")} (${modKey}+T)`} onClick={onNewQuery} />
       </div>
     </div>

@@ -622,9 +622,24 @@ test.describe("shell", () => {
     await bar.getByRole("button", { name: "Apply" }).click();
     await expect(page.locator(".table-sql-body")).toContainText("WHERE");
     await expect(page.locator(".table-sql-body")).toContainText("Person 1");
+    await expect(page.locator(".sql-drawer")).toBeVisible();
     await page.getByRole("button", { name: "Open in a query tab" }).click();
     await expect(page.locator(".tabbar .tab.active .t-label")).toHaveText("Query");
     await expect(page.locator(".cm-content")).toContainText("WHERE");
+  });
+
+  test("query tabs get numbered and the tab list opens any of them", async ({ page }) => {
+    await openApp(page);
+    await connect(page, "Demo Postgres");
+    for (let i = 0; i < 7; i++) await page.keyboard.press("Control+t");
+    const titles = await page.locator(".tabbar .tab .t-label").allTextContents();
+    expect(titles.slice(0, 3)).toEqual(["Query", "Query 2", "Query 3"]);
+    expect(new Set(titles).size).toBe(7);
+    // no tab may collapse below its minimum width
+    for (const w of await page.locator(".tabbar .tab").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width))) expect(w).toBeGreaterThanOrEqual(128);
+    await page.locator(".tab-actions").getByRole("button", { name: /Open tabs/ }).click();
+    await page.getByRole("menuitemcheckbox", { name: /Query 5/ }).click();
+    await expect(page.locator(".tabbar .tab.active .t-label")).toHaveText("Query 5");
   });
 
   test("tabs close with confirmation when dirty", async ({ page }) => {
