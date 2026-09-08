@@ -1,6 +1,6 @@
 [package]
 name = "osprey"
-version = "0.1.0"
+version = "0.1.1"
 description = "Osprey — a fast, beautiful database client for PostgreSQL, MySQL and Redis."
 authors = ["lbss9"]
 edition = "2021"
